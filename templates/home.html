@@ -4,11 +4,11 @@
 <div class="card">
   <div class="inline" style="justify-content:space-between;">
     <h2>Создание заявки</h2>
-    <button class="btn btn-primary" onclick="openModal('create-modal')">Новая заявка</button>
+    <button class="btn btn-primary" type="button" onclick="openModal('create-modal')">Новая заявка</button>
   </div>
 </div>
 
-<div id="create-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);align-items:center;justify-content:center;padding:16px;z-index:50;">
+<div id="create-modal" class="modal hidden" style="padding:16px;">
   <div class="card" style="width:100%;max-width:700px;">
     <div class="inline" style="justify-content:space-between;"><h3>Новая заявка</h3><button class="btn" type="button" onclick="closeModal('create-modal')">Закрыть</button></div>
     <form method="POST" action="/tickets/new">
