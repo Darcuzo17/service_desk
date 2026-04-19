@@ -2,15 +2,38 @@
 {% block title %}Дашборд{% endblock %}
 {% block content %}
 <div class="grid grid-2">
-  <div class="card"><h3>Мои активные</h3><p>{{ stats.my_active }}</p></div>
-  <div class="card"><h3>Новые</h3><p>{{ stats.all_new }}</p></div>
-  <div class="card"><h3>Просроченные</h3><p>{{ stats.overdue }}</p></div>
-  <div class="card"><h3>На согласовании</h3><p>{{ stats.pending_approval }}</p></div>
+  <div class="card">
+    <h3>Мои активные</h3>
+    <p>{{ stats.my_active }}</p>
+  </div>
+  <div class="card">
+    <h3>Новые</h3>
+    <p>{{ stats.all_new }}</p>
+  </div>
+  <div class="card">
+    <h3>Просроченные</h3>
+    <p>{{ stats.overdue }}</p>
+  </div>
+  <div class="card">
+    <h3>На согласовании</h3>
+    <p>{{ stats.pending_approval }}</p>
+  </div>
 </div>
 <div class="card">
   <h3>Мои активные заявки</h3>
-  <table class="table"><tr><th>Номер</th><th>Тема</th><th>Дедлайн</th></tr>
-  {% for t in my_active %}<tr><td>{{ t.ticket_number }}</td><td>{{ t.summary }}</td><td>{{ t.deadline_at|datefmt }}</td></tr>{% else %}<tr><td colspan="3">Нет данных</td></tr>{% endfor %}
+  <table class="table">
+    <tr>
+      <th>Номер</th>
+      <th>Тема</th>
+      <th>Дедлайн</th>
+    </tr>
+    {% for t in my_active %}<tr>
+      <td>{{ t.ticket_number }}</td>
+      <td>{{ t.summary }}</td>
+      <td>{{ t.deadline_at|datefmt }}</td>
+    </tr>{% else %}<tr>
+      <td colspan="3">Нет данных</td>
+    </tr>{% endfor %}
   </table>
 </div>
 {% endblock %}

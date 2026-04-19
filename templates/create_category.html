@@ -7,13 +7,31 @@
     <input name="catalog_name" placeholder="Название" required>
     <input name="catalog_icon" placeholder="Иконка" value="briefcase">
     <textarea name="catalog_description" placeholder="Описание"></textarea>
-    <select name="work_group_uid"><option value="">Рабочая группа</option>{% for wg in work_groups %}<option value="{{ wg.work_group_uid }}">{{ wg.group_name }}</option>{% endfor %}</select>
-    <select name="parent_uid"><option value="">Это категория (верхний уровень)</option>{% for c in top_cats %}<option value="{{ c.catalog_uid }}">Услуга внутри: {{ c.catalog_name }}</option>{% endfor %}</select>
-    <select name="ticket_type"><option value="service_request">Запрос на обслуживание</option><option value="incident">Инцидент</option></select>
-    <select name="priority"><option value="low">Низкий</option><option value="medium" selected>Средний</option><option value="high">Высокий</option><option value="critical">Критический</option></select>
-    <select name="sla_uid"><option value="">— SLA-политика —</option>{% for s in slas %}<option value="{{ s.sla_uid }}">{{ s.policy_name }}</option>{% endfor %}</select>
+    <select name="work_group_uid">
+      <option value="">Рабочая группа</option>{% for wg in work_groups %}<option value="{{ wg.work_group_uid }}">{{
+        wg.group_name }}</option>{% endfor %}
+    </select>
+    <select name="parent_uid">
+      <option value="">Это категория (верхний уровень)</option>{% for c in top_cats %}<option
+        value="{{ c.catalog_uid }}">Услуга внутри: {{ c.catalog_name }}</option>{% endfor %}
+    </select>
+    <select name="ticket_type">
+      <option value="service_request">Запрос на обслуживание</option>
+      <option value="incident">Инцидент</option>
+    </select>
+    <select name="priority">
+      <option value="low">Низкий</option>
+      <option value="medium" selected>Средний</option>
+      <option value="high">Высокий</option>
+      <option value="critical">Критический</option>
+    </select>
+    <select name="sla_uid">
+      <option value="">— SLA-политика —</option>{% for s in slas %}<option value="{{ s.sla_uid }}">{{ s.policy_name }}
+      </option>{% endfor %}
+    </select>
     <label><input type="checkbox" name="approval_required"> Требует согласования</label>
-    <div class="actions"><button class="btn btn-primary" type="submit">Сохранить</button><a class="btn" href="{{ url_for('admin_categories') }}">Назад</a></div>
+    <div class="actions"><button class="btn btn-primary" type="submit">Сохранить</button><a class="btn"
+        href="{{ url_for('admin_categories') }}">Назад</a></div>
   </form>
 </div>
 {% endblock %}

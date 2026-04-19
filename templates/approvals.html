@@ -49,21 +49,21 @@
             <span class="appr-ticket-summary">{{ a.ticket.summary if a.ticket else '—' }}</span>
           </div>
           <div class="appr-meta">
-            <span><i data-feather="user"></i> {{ a.ticket.requester.full_name() if a.ticket and a.ticket.requester else '—' }}</span>
+            <span><i data-feather="user"></i> {{ a.ticket.requester.full_name() if a.ticket and a.ticket.requester else
+              '—' }}</span>
             <span><i data-feather="calendar"></i> {{ a.create_date|datefmt }}</span>
           </div>
         </div>
         <div class="appr-actions">
-          <textarea class="form-textarea appr-comment" rows="2"
-                    placeholder="Комментарий (необязательно)"
-                    id="comment-{{ a.approval_uid }}"></textarea>
+          <textarea class="form-textarea appr-comment" rows="2" placeholder="Комментарий (необязательно)"
+            id="comment-{{ a.approval_uid }}"></textarea>
           <div class="appr-btns">
             <button class="btn btn-success btn-sm"
-                    onclick="decide('{{ a.approval_uid }}', '{{ a.ticket_uid }}', 'approved')">
+              onclick="decide('{{ a.approval_uid }}', '{{ a.ticket_uid }}', 'approved')">
               <i data-feather="check"></i> Согласовать
             </button>
             <button class="btn btn-danger btn-sm"
-                    onclick="decide('{{ a.approval_uid }}', '{{ a.ticket_uid }}', 'rejected')">
+              onclick="decide('{{ a.approval_uid }}', '{{ a.ticket_uid }}', 'rejected')">
               <i data-feather="x"></i> Отклонить
             </button>
           </div>
@@ -122,7 +122,8 @@
           <td>{{ a.ticket.summary if a.ticket else '—' }}</td>
           <td>{{ a.step_name or '—' }}</td>
           <td>
-            <span class="status-badge {% if a.status == 'approved' %}status-approved{% else %}status-rejected{% endif %}">
+            <span
+              class="status-badge {% if a.status == 'approved' %}status-approved{% else %}status-rejected{% endif %}">
               {{ 'Согласовано' if a.status == 'approved' else 'Отклонено' }}
             </span>
           </td>
@@ -180,7 +181,9 @@
       </tbody>
     </table>
     {% else %}
-    <div class="empty-state"><i data-feather="list"></i><p>Нет записей</p></div>
+    <div class="empty-state"><i data-feather="list"></i>
+      <p>Нет записей</p>
+    </div>
     {% endif %}
   </div>
   {% endif %}
@@ -190,40 +193,40 @@
 
 {% block scripts %}
 <script>
-function switchTab(name) {
-  document.querySelectorAll('.appr-tab').forEach(t => t.style.display = 'none');
-  document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + name).style.display = '';
-  document.querySelector(`[data-tab="${name}"]`).classList.add('active');
-}
+  function switchTab(name) {
+    document.querySelectorAll('.appr-tab').forEach(t => t.style.display = 'none');
+    document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).style.display = '';
+    document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+  }
 
-// Open default tab
-document.addEventListener('DOMContentLoaded', function() {
-  {% if to_approve %}
-  switchTab('to_approve');
-  {% else %}
-  switchTab('waiting');
-  {% endif %}
-});
+  // Open default tab
+  document.addEventListener('DOMContentLoaded', function () {
+    {% if to_approve %}
+    switchTab('to_approve');
+    {% else %}
+    switchTab('waiting');
+    {% endif %}
+  });
 
-async function decide(approvalUid, ticketUid, decision) {
-  const comment = (document.getElementById('comment-' + approvalUid)?.value || '').trim();
-  const label = decision === 'approved' ? 'согласовать' : 'отклонить';
-  if (!confirm(`Вы уверены, что хотите ${label} заявку?`)) return;
-  try {
-    const r = await fetch(`/api/tickets/${ticketUid}/update`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({action: 'approve', approval_uid: approvalUid, decision, comment})
-    });
-    const d = await r.json();
-    if (d.success) {
-      showToast(decision === 'approved' ? 'Согласовано' : 'Отклонено', 'success');
-      setTimeout(() => location.reload(), 700);
-    } else {
-      showToast(d.error || 'Ошибка', 'error');
-    }
-  } catch(e) { showToast('Ошибка сети', 'error'); }
-}
+  async function decide(approvalUid, ticketUid, decision) {
+    const comment = (document.getElementById('comment-' + approvalUid)?.value || '').trim();
+    const label = decision === 'approved' ? 'согласовать' : 'отклонить';
+    if (!confirm(`Вы уверены, что хотите ${label} заявку?`)) return;
+    try {
+      const r = await fetch(`/api/tickets/${ticketUid}/update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve', approval_uid: approvalUid, decision, comment })
+      });
+      const d = await r.json();
+      if (d.success) {
+        showToast(decision === 'approved' ? 'Согласовано' : 'Отклонено', 'success');
+        setTimeout(() => location.reload(), 700);
+      } else {
+        showToast(d.error || 'Ошибка', 'error');
+      }
+    } catch (e) { showToast('Ошибка сети', 'error'); }
+  }
 </script>
 {% endblock %}

@@ -16,9 +16,10 @@
 <div class="card">
   <h3>Комментарии</h3>
   {% for c in comments %}
-    <p><strong>{{ c.author_rel.full_name() if c.author_rel else '—' }}</strong> <span class="muted">{{ c.create_date|datefmt }}</span><br>{{ c.param_value }}</p>
+  <p><strong>{{ c.author_rel.full_name() if c.author_rel else '—' }}</strong> <span class="muted">{{
+      c.create_date|datefmt }}</span><br>{{ c.param_value }}</p>
   {% else %}
-    <p class="muted">Комментариев пока нет.</p>
+  <p class="muted">Комментариев пока нет.</p>
   {% endfor %}
 
   <form method="POST" action="/ticket/{{ ticket.ticket_uid }}/add_comment" style="margin-top:12px;">
@@ -38,10 +39,10 @@
       <div>
         <label>Статус</label>
         <select name="status">
-          <option value="new" {% if ticket.status == 'new' %}selected{% endif %}>Новая</option>
-          <option value="in_progress" {% if ticket.status == 'in_progress' %}selected{% endif %}>В работе</option>
-          <option value="resolved" {% if ticket.status == 'resolved' %}selected{% endif %}>Решена</option>
-          <option value="cancelled" {% if ticket.status == 'cancelled' %}selected{% endif %}>Отменена</option>
+          <option value="new" {% if ticket.status=='new' %}selected{% endif %}>Новая</option>
+          <option value="in_progress" {% if ticket.status=='in_progress' %}selected{% endif %}>В работе</option>
+          <option value="resolved" {% if ticket.status=='resolved' %}selected{% endif %}>Решена</option>
+          <option value="cancelled" {% if ticket.status=='cancelled' %}selected{% endif %}>Отменена</option>
         </select>
       </div>
       {% if current_user.role in ('manager', 'admin') %}
@@ -50,7 +51,8 @@
         <select name="performer_uid">
           <option value="">не назначен</option>
           {% for s in specialists %}
-            <option value="{{ s.user_uid }}" {% if ticket.performer_uid == s.user_uid %}selected{% endif %}>{{ s.full_name() }}</option>
+          <option value="{{ s.user_uid }}" {% if ticket.performer_uid==s.user_uid %}selected{% endif %}>{{ s.full_name()
+            }}</option>
           {% endfor %}
         </select>
       </div>

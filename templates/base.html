@@ -1,45 +1,49 @@
 <!doctype html>
 <html lang="ru">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Service Desk{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
-<body>
-{% if current_user.is_authenticated %}
-<nav class="navbar">
-  <div class="container">
-    <div class="nav-left">
-      <a href="{{ url_for('home') }}">Service Desk</a>
-      {% if is_specialist() %}
-      <a href="{{ url_for('tickets_board') }}" class="{% if request.endpoint == 'tickets_board' %}active{% endif %}">Заявки</a>
-      <a href="{{ url_for('dashboard') }}" class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Дашборд</a>
-      {% endif %}
-      {% if current_user.role == 'admin' %}
-      <a href="{{ url_for('admin_users') }}">Пользователи</a>
-      <a href="{{ url_for('admin_categories') }}">Каталог</a>
-      <a href="{{ url_for('admin_work_groups') }}">Группы</a>
-      {% endif %}
-    </div>
-    <div class="nav-right">
-      <div id="notif-wrapper">
-        <button type="button" onclick="toggleNotifDropdown()">
-          🔔 <span id="notif-badge" class="badge hidden">0</span>
-        </button>
-        <div id="notif-dropdown" class="hidden">
-          <ul id="notif-list"></ul>
-        </div>
-      </div>
-      <a href="{{ url_for('profile') }}">{{ current_user.first_name }}</a>
-      <a href="{{ url_for('logout') }}">Выйти</a>
-    </div>
-  </div>
-</nav>
-{% endif %}
 
-<div class="container">
-  {% with messages = get_flashed_messages(with_categories=true) %}
+<body>
+  {% if current_user.is_authenticated %}
+  <nav class="navbar">
+    <div class="container">
+      <div class="nav-left">
+        <a href="{{ url_for('home') }}">Service Desk</a>
+        {% if is_specialist() %}
+        <a href="{{ url_for('tickets_board') }}"
+          class="{% if request.endpoint == 'tickets_board' %}active{% endif %}">Заявки</a>
+        <a href="{{ url_for('dashboard') }}"
+          class="{% if request.endpoint == 'dashboard' %}active{% endif %}">Дашборд</a>
+        {% endif %}
+        {% if current_user.role == 'admin' %}
+        <a href="{{ url_for('admin_users') }}">Пользователи</a>
+        <a href="{{ url_for('admin_categories') }}">Каталог</a>
+        <a href="{{ url_for('admin_work_groups') }}">Группы</a>
+        {% endif %}
+      </div>
+      <div class="nav-right">
+        <div id="notif-wrapper">
+          <button type="button" onclick="toggleNotifDropdown()">
+            🔔 <span id="notif-badge" class="badge hidden">0</span>
+          </button>
+          <div id="notif-dropdown" class="hidden">
+            <ul id="notif-list"></ul>
+          </div>
+        </div>
+        <a href="{{ url_for('profile') }}">{{ current_user.first_name }}</a>
+        <a href="{{ url_for('logout') }}">Выйти</a>
+      </div>
+    </div>
+  </nav>
+  {% endif %}
+
+  <div class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
     <div class="flash-wrap">
       {% for category, message in messages %}
@@ -47,11 +51,12 @@
       {% endfor %}
     </div>
     {% endif %}
-  {% endwith %}
+    {% endwith %}
 
-  {% block content %}{% endblock %}
-</div>
-<script src="{{ url_for('static', filename='js/main.js') }}"></script>
-{% block scripts %}{% endblock %}
+    {% block content %}{% endblock %}
+  </div>
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
 </body>
+
 </html>

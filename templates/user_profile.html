@@ -8,7 +8,8 @@
   <p>Телефон: {{ user.mobile or user.work_phone or '—' }}</p>
   <p>Департамент: {{ user.department or '—' }}</p>
   {% if manager %}<p>Руководитель: <a href="/user/{{ manager.user_uid }}">{{ manager.full_name() }}</a></p>{% endif %}
-  {% if work_groups %}<p>Группы: {% for wg in work_groups %}<span class="badge">{{ wg.group_name }}</span> {% endfor %}</p>{% endif %}
+  {% if work_groups %}<p>Группы: {% for wg in work_groups %}<span class="badge">{{ wg.group_name }}</span> {% endfor %}
+  </p>{% endif %}
   <button class="btn" onclick="history.back()">Назад</button>
 </div>
 {% endblock %}
