@@ -9,25 +9,24 @@
 """
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 from werkzeug.security import generate_password_hash
 from werkzeug.utils import secure_filename
 from flask import (Flask, render_template, request, redirect, jsonify,
-                   flash, url_for, send_from_directory)
+                   flash, send_from_directory)
 from flask_login import (LoginManager, login_user, login_required,
                          logout_user, current_user)
 from sqlalchemy import case
 
 from models import (db, User, Password, UserRole, WorkGroup, UserWorkGroup,
-                    SlaPolicy, ServiceCatalog, ApprovalRoute, ApprovalStep,
+                    SlaPolicy, ServiceCatalog,
                     TicketApproval, Ticket, TicketHistory, TicketParamValue,
                     Attachment, Notification, gen_uuid,
     create_user_db, reset_password_db, verify_password,
     _set_password_hash, _ensure_role, _ensure_work_group,
     generate_ticket_number, compute_deadline,
     add_ticket_history, notify, notify_ticket_update,
-    create_approval_chain, process_approval_decision,
-    generate_password, format_mobile, normalize_gender,
+    create_approval_chain, process_approval_decision, format_mobile,
 )
 
 # ============================================================

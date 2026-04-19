@@ -1,11 +1,32 @@
+"""
+Модели и вспомогательные функции для учебного проекта Service Desk.
+
+В файле находятся:
+- ORM-модели таблиц схемы `sm`;
+- вспомогательные функции для работы с пользователями и заявками;
+- простые Python-аналоги части логики, которая в промышленной системе
+  могла бы жить в хранимых процедурах PostgreSQL.
+
+Файл оставлен достаточно линейным и подробным, чтобы код было легче
+читать и объяснять на защите дипломного проекта.
+"""
+
 import uuid
+import re
+import random
+import string
+from datetime import datetime, timedelta
+
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import UserMixin
-from datetime import datetime
+from sqlalchemy import text, func
+from werkzeug.security import generate_password_hash, check_password_hash
 
 db = SQLAlchemy()
 
+
 def gen_uuid():
+    """Генерирует UUID в строковом формате для первичных ключей."""
     return str(uuid.uuid4())
 
 
@@ -13,6 +34,7 @@ def gen_uuid():
 # sm.users
 # ---------------------------------------------------------------------------
 class User(UserMixin, db.Model):
+    """Пользователь системы Service Desk."""
     __tablename__ = 'users'
     __table_args__ = {'schema': 'sm'}
 
@@ -55,9 +77,11 @@ class User(UserMixin, db.Model):
                                            backref='performer', lazy='dynamic')
 
     def get_id(self):
+        """Flask-Login использует это значение как идентификатор сессии."""
         return str(self.user_uid)
 
     def full_name(self):
+        """Собирает ФИО пользователя в одну строку."""
         parts = [self.last_name, self.first_name]
         if self.middel_name:
             parts.append(self.middel_name)
@@ -65,15 +89,18 @@ class User(UserMixin, db.Model):
 
     @property
     def role(self):
+        """Возвращает роль пользователя; по умолчанию это обычный user."""
         if self.role_record:
             return self.role_record.role
         return 'user'
 
     @property
     def is_active(self):
+        """Пользователь считается активным, если его учётная запись не отключена."""
         return not self.is_deactivated and not self.is_temp_deactivated
 
     def primary_work_group(self):
+        """Возвращает основную рабочую группу пользователя."""
         link = self.work_group_links.filter_by(is_primary=True).first()
         if link:
             return link.work_group
@@ -83,6 +110,7 @@ class User(UserMixin, db.Model):
         return None
 
     def all_work_groups(self):
+        """Возвращает все рабочие группы пользователя в порядке назначения."""
         return [l.work_group for l in self.work_group_links.order_by(UserWorkGroup.assigned_date).all()]
 
       
@@ -90,13 +118,14 @@ class User(UserMixin, db.Model):
 # sm.passwords
 # ---------------------------------------------------------------------------
 class Password(db.Model):
+    """Хранение хэша пароля и технических флагов авторизации."""
     __tablename__ = 'passwords'
     __table_args__ = {'schema': 'sm'}
 
     user_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'),
                          primary_key=True, nullable=False)
     passwordhash = db.Column(db.Text, nullable=True)
-    # App-level fields
+    # Дополнительные поля используются на стороне приложения.
     is_first_login = db.Column(db.Boolean, default=True)
     must_change_password = db.Column(db.Boolean, default=False)
     failed_attempts = db.Column(db.Integer, default=0)
@@ -106,6 +135,7 @@ class Password(db.Model):
 # User roles (app-level, outside original schema but within sm.)
 # ---------------------------------------------------------------------------
 class UserRole(db.Model):
+    """Роль пользователя внутри системы."""
     __tablename__ = 'user_roles'
     __table_args__ = {'schema': 'sm'}
 
@@ -117,6 +147,7 @@ class UserRole(db.Model):
 # sm.work_groups
 # ---------------------------------------------------------------------------
 class WorkGroup(db.Model):
+    """Рабочая группа, которая обслуживает заявки своего направления."""
     __tablename__ = 'work_groups'
     __table_args__ = {'schema': 'sm'}
 
@@ -140,6 +171,7 @@ class WorkGroup(db.Model):
 # sm.user_work_groups
 # ---------------------------------------------------------------------------
 class UserWorkGroup(db.Model):
+    """Связь пользователя с одной или несколькими рабочими группами."""
     __tablename__ = 'user_work_groups'
     __table_args__ = {'schema': 'sm'}
 
@@ -154,6 +186,7 @@ class UserWorkGroup(db.Model):
 # sm.sla_policies
 # ---------------------------------------------------------------------------
 class SlaPolicy(db.Model):
+    """Политика SLA: время реакции и время решения заявки."""
     __tablename__ = 'sla_policies'
     __table_args__ = {'schema': 'sm'}
 
@@ -171,6 +204,7 @@ class SlaPolicy(db.Model):
 # sm.service_catalog
 # ---------------------------------------------------------------------------
 class ServiceCatalog(db.Model):
+    """Каталог услуг и категорий, доступных пользователю при создании заявки."""
     __tablename__ = 'service_catalog'
     __table_args__ = {'schema': 'sm'}
 
@@ -206,6 +240,7 @@ class ServiceCatalog(db.Model):
 # sm.tickets
 # ---------------------------------------------------------------------------
 class Ticket(db.Model):
+    """Основная сущность системы — заявка пользователя."""
     __tablename__ = 'tickets'
     __table_args__ = {'schema': 'sm'}
 
@@ -244,6 +279,7 @@ class Ticket(db.Model):
                                 foreign_keys='TicketApproval.ticket_uid')
 
     def is_overdue(self):
+        """Проверяет, просрочена ли заявка относительно рассчитанного дедлайна."""
         if not self.deadline_at or self.status in ('resolved', 'closed', 'cancelled'):
             return False
         now = (datetime.now(self.deadline_at.tzinfo)
@@ -256,6 +292,7 @@ class Ticket(db.Model):
 # sm.ticket_history
 # ---------------------------------------------------------------------------
 class TicketHistory(db.Model):
+    """История изменений полей заявки."""
     __tablename__ = 'ticket_history'
     __table_args__ = {'schema': 'sm'}
 
@@ -275,6 +312,7 @@ class TicketHistory(db.Model):
 # sm.ticket_param_values  (comments, approval decisions, internal notes)
 # ---------------------------------------------------------------------------
 class TicketParamValue(db.Model):
+    """Гибкие параметры заявки: комментарии, согласования, служебные заметки."""
     __tablename__ = 'ticket_param_values'
     __table_args__ = {'schema': 'sm'}
 
@@ -294,6 +332,7 @@ class TicketParamValue(db.Model):
 # sm.attachments
 # ---------------------------------------------------------------------------
 class Attachment(db.Model):
+    """Файлы, прикреплённые к заявке."""
     __tablename__ = 'attachments'
     __table_args__ = {'schema': 'sm'}
 
@@ -310,6 +349,7 @@ class Attachment(db.Model):
 
 
 class ApprovalRoute(db.Model):
+    """Маршрут согласования для конкретной услуги каталога."""
     __tablename__ = 'approval_routes'
     __table_args__ = {'schema': 'sm'}
 
@@ -326,6 +366,7 @@ class ApprovalRoute(db.Model):
 
 
 class ApprovalStep(db.Model):
+    """Один шаг маршрута согласования."""
     __tablename__ = 'approval_steps'
     __table_args__ = {'schema': 'sm'}
 
@@ -340,6 +381,7 @@ class ApprovalStep(db.Model):
 
 
 class TicketApproval(db.Model):
+    """Экземпляр шага согласования, созданный уже для конкретной заявки."""
     __tablename__ = 'ticket_approvals'
     __table_args__ = {'schema': 'sm'}
 
@@ -357,6 +399,7 @@ class TicketApproval(db.Model):
 
 
 class Notification(db.Model):
+    """Уведомления для пользователей о действиях по заявкам."""
     __tablename__ = 'notifications'
     __table_args__ = {'schema': 'sm'}
 
@@ -371,6 +414,7 @@ class Notification(db.Model):
 
 
 class TicketTemplate(db.Model):
+    """Шаблон заявки для ускоренного создания типовых обращений."""
     __tablename__ = 'ticket_templates'
     __table_args__ = {'schema': 'sm'}
 
@@ -386,6 +430,7 @@ class TicketTemplate(db.Model):
 
 
 class AuditLog(db.Model):
+    """Журнал аудита действий в системе."""
     __tablename__ = 'audit_log'
     __table_args__ = {'schema': 'sm'}
 
@@ -400,21 +445,17 @@ class AuditLog(db.Model):
 
 
 # ---------------------------------------------------------------------------
-# DB HELPERS (moved from db_functions.py)
+# ВСПОМОГАТЕЛЬНАЯ ЛОГИКА ПРИЛОЖЕНИЯ
 # ---------------------------------------------------------------------------
-import re
-import random
-import string
-from datetime import timedelta
-from sqlalchemy import text, func
-from werkzeug.security import generate_password_hash, check_password_hash
+# Ниже находятся простые Python-функции, которые дублируют часть логики БД.
+# Для учебного проекта это удобно: код можно читать и тестировать прямо в Python.
 
 _RUS = list('АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЫЭЮЯЬЪ')
 _ENG = ['A','B','V','G','D','E','YO','ZH','Z','I','Y','K','L','M','N','O',
         'P','R','S','T','U','F','KH','C','CH','SH','SHH','Y','E','YU','YA','','']
 
 def translit(text_ru: str) -> str:
-    """Python equivalent of sm.translit()."""
+    """Простая транслитерация кириллицы в латиницу."""
     if not text_ru:
         return ''
     result = []
@@ -428,9 +469,10 @@ def translit(text_ru: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# LOGIN GENERATION  (mirrors sm.generate_login)
+# GENERATE LOGIN  (аналог sm.generate_login)
 # ---------------------------------------------------------------------------
 def generate_login(last_name: str, first_name: str, middle_name: str = None) -> str:
+    """Генерирует логин вида `Ivanov.II` и делает его уникальным."""
     base_ln = translit(last_name)[:8]
     base_fn = translit(first_name)[:1]
     base_mn = translit(middle_name)[:1] if middle_name else ''
@@ -444,10 +486,10 @@ def generate_login(last_name: str, first_name: str, middle_name: str = None) -> 
 
 
 # ---------------------------------------------------------------------------
-# PASSWORD GENERATION  (mirrors sm.generate_password)
+# GENERATE PASSWORD  (аналог sm.generate_password)
 # ---------------------------------------------------------------------------
 def generate_password() -> str:
-    """Generate a strong temporary password."""
+    """Создаёт временный пароль с буквами разного регистра, цифрами и спецсимволами."""
     chars = string.ascii_letters + string.digits + '!@#$%&*'
     parts = [
         random.choice(string.ascii_uppercase),
@@ -461,9 +503,10 @@ def generate_password() -> str:
 
 
 # ---------------------------------------------------------------------------
-# MOBILE FORMATTING  (mirrors logic in sm.create_user)
+# FORMAT MOBILE  (аналог части логики sm.create_user)
 # ---------------------------------------------------------------------------
 def format_mobile(mobile: str):
+    """Приводит телефон к формату `+7 (XXX) XXX-XX-XX`."""
     if not mobile:
         return None
     digits = re.sub(r'\D', '', mobile)
@@ -474,9 +517,10 @@ def format_mobile(mobile: str):
 
 
 # ---------------------------------------------------------------------------
-# GENDER NORMALISATION  (mirrors logic in sm.create_user)
+# NORMALIZE GENDER  (аналог части логики sm.create_user)
 # ---------------------------------------------------------------------------
 def normalize_gender(gender: str):
+    """Нормализует пол к значениям `M`, `F` или `O`."""
     if not gender:
         return None
     g = gender.upper().strip()
@@ -491,28 +535,30 @@ def normalize_gender(gender: str):
 # TICKET NUMBER GENERATION
 # ---------------------------------------------------------------------------
 def generate_ticket_number() -> str:
-    """Generate a sequential ticket number like SD-20240001."""
+    """Генерирует номер заявки вида `SD-2026-0001`."""
     count = db.session.query(func.count(Ticket.ticket_uid)).scalar() or 0
     year = datetime.utcnow().year
     return f"SD-{year}-{(count + 1):04d}"
 
 
 # ---------------------------------------------------------------------------
-# CREATE USER  (mirrors sm.create_user — calls DB func or Python fallback)
+# CREATE USER  (аналог sm.create_user)
 # ---------------------------------------------------------------------------
 def create_user_db(last_name, first_name, middle_name, email, mobile,
                    work_phone, gender, title, department, company,
                    role='user', work_group_uid=None, manager_uid=None,
                    creator_uid=None) -> tuple:
     """
-    Creates a user.
+    Создаёт пользователя и возвращает его логин и временный пароль.
 
-    Returns (user_name, temp_password).
+    Возвращаемое значение:
+    `(user_name, temp_password)`.
     """
     temp_password = generate_password()
     user_name = generate_login(last_name, first_name, middle_name)
     uid = gen_uuid()
-    sys_uid = creator_uid or uid   # self-reference for system bootstrap
+    # При первичной инициализации системы пользователя может создавать сам код.
+    sys_uid = creator_uid or uid
 
     user = User(
         user_uid=uid,
@@ -532,7 +578,7 @@ def create_user_db(last_name, first_name, middle_name, email, mobile,
         update_by=sys_uid,
     )
     db.session.add(user)
-    db.session.flush()  # get user_uid
+    db.session.flush()
 
     _set_password_hash(user.user_uid, temp_password)
     _ensure_role(user.user_uid, role, creator_uid)
@@ -543,12 +589,14 @@ def create_user_db(last_name, first_name, middle_name, email, mobile,
 
 
 # ---------------------------------------------------------------------------
-# RESET PASSWORD  (mirrors sm.reset_password — with Python fallback)
+# RESET PASSWORD  (аналог sm.reset_password)
 # ---------------------------------------------------------------------------
 def reset_password_db(user_name: str):
     """
-    Generates a new temp password and stores its Werkzeug hash.
-    Returns the plain-text temporary password.
+    Генерирует новый временный пароль и сохраняет его хэш.
+
+    Возвращает пароль в открытом виде, чтобы администратор мог показать его
+    пользователю один раз после сброса.
     """
     user = User.query.filter_by(user_name=user_name).first()
     if not user:
@@ -572,6 +620,7 @@ def reset_password_db(user_name: str):
 # INTERNAL HELPERS
 # ---------------------------------------------------------------------------
 def _set_password_hash(user_uid: str, plain_password: str):
+    """Сохраняет или обновляет хэш пароля пользователя."""
     pwd = Password.query.filter_by(user_uid=user_uid).first()
     hashed = generate_password_hash(plain_password)
     if pwd:
@@ -583,6 +632,7 @@ def _set_password_hash(user_uid: str, plain_password: str):
 
 
 def _ensure_role(user_uid: str, role: str, creator_uid: str = None):
+    """Создаёт роль пользователя или обновляет её, если запись уже есть."""
     existing = UserRole.query.filter_by(user_uid=user_uid).first()
     if existing:
         existing.role = role
@@ -591,6 +641,7 @@ def _ensure_role(user_uid: str, role: str, creator_uid: str = None):
 
 
 def _ensure_work_group(user_uid: str, work_group_uid: str = None):
+    """Привязывает пользователя к рабочей группе, если она указана."""
     if not work_group_uid:
         return
     existing = UserWorkGroup.query.filter_by(
@@ -604,14 +655,14 @@ def _ensure_work_group(user_uid: str, work_group_uid: str = None):
 
 
 def verify_password(user: User, plain_password: str) -> bool:
-    """Check plain password against stored Werkzeug hash."""
+    """Проверяет обычный пароль по сохранённому Werkzeug-хэшу."""
     if not user.password_record or not user.password_record.passwordhash:
         return False
     return check_password_hash(user.password_record.passwordhash, plain_password)
 
 
 def add_ticket_history(ticket_uid, field_name, old_value, new_value, changed_by_uid):
-    from models import TicketHistory
+    """Добавляет запись в историю изменений заявки."""
     h = TicketHistory(
         ticket_uid=ticket_uid,
         field_name=field_name,
@@ -623,7 +674,7 @@ def add_ticket_history(ticket_uid, field_name, old_value, new_value, changed_by_
 
 
 def compute_deadline(catalog):
-    """Estimate ticket deadline from linked SLA policy."""
+    """Рассчитывает дедлайн заявки по SLA или по приоритету по умолчанию."""
     hours = 24
     if getattr(catalog, 'sla', None) and getattr(catalog.sla, 'resolution_time_hours', None):
         hours = catalog.sla.resolution_time_hours
@@ -637,6 +688,7 @@ def compute_deadline(catalog):
 
 
 def notify(user_uid, message, ticket_uid=None):
+    """Создаёт уведомление для одного пользователя."""
     db.session.add(Notification(
         user_uid=user_uid,
         message=message,
@@ -645,6 +697,7 @@ def notify(user_uid, message, ticket_uid=None):
 
 
 def notify_ticket_update(ticket, message, exclude_uid=None):
+    """Рассылает уведомление всем участникам заявки, кроме исключённого пользователя."""
     recipients = {ticket.requester_uid, ticket.recipient_uid, ticket.performer_uid}
     recipients = {uid for uid in recipients if uid and uid != exclude_uid}
     for uid in recipients:
@@ -652,6 +705,7 @@ def notify_ticket_update(ticket, message, exclude_uid=None):
 
 
 def audit(user_uid, action, entity_type=None, entity_uid=None, details=None, ip=None):
+    """Записывает действие пользователя в журнал аудита."""
     db.session.add(AuditLog(
         user_uid=user_uid,
         action=action,
@@ -663,8 +717,11 @@ def audit(user_uid, action, entity_type=None, entity_uid=None, details=None, ip=
 
 
 def create_approval_chain(ticket, catalog, requester):
+    """Создаёт простую цепочку согласования для заявки."""
     approver_uid = requester.manager_uid
     if not approver_uid:
+        # Если у пользователя не указан руководитель, выбираем первого доступного
+        # manager/admin как резервный вариант для демонстрации процесса.
         manager = db.session.execute(text(
             "SELECT u.user_uid FROM sm.users u "
             "JOIN sm.user_roles r ON r.user_uid = u.user_uid "
@@ -680,10 +737,13 @@ def create_approval_chain(ticket, catalog, requester):
             status='pending',
         ))
         ticket.status = 'pending_approval'
-        notify(approver_uid, f'Approval required for {ticket.ticket_number}', ticket.ticket_uid)
+        notify(approver_uid,
+               f'Требуется согласование заявки {ticket.ticket_number}',
+               ticket.ticket_uid)
 
 
 def process_approval_decision(ticket, approval, decision, comment, actor_uid):
+    """Обрабатывает решение по шагу согласования заявки."""
     valid = {'approved', 'rejected'}
     if decision not in valid:
         raise ValueError('Недопустимое решение согласования')
@@ -700,9 +760,10 @@ def process_approval_decision(ticket, approval, decision, comment, actor_uid):
         notify_ticket_update(ticket, f'Заявка {ticket.ticket_number} отклонена', exclude_uid=actor_uid)
         return
 
-    pending = TicketApproval.query.filter_by(ticket_uid=ticket.ticket_uid, status='pending').order_by(
-        TicketApproval.step_order
-    ).all()
+    pending = TicketApproval.query.filter_by(
+        ticket_uid=ticket.ticket_uid,
+        status='pending',
+    ).order_by(TicketApproval.step_order).all()
     if pending:
         nxt = pending[0]
         if nxt.approver_uid:
