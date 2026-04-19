@@ -1,6 +1,11 @@
 """
-Service Desk v3 — app.py
-Flask + PostgreSQL + SQLAlchemy
+Главный файл веб-приложения Service Desk.
+
+В этом модуле собрана основная логика учебного проекта:
+- настройка Flask и подключения к БД;
+- вспомогательные функции для проверки прав и форматирования;
+- маршруты авторизации, работы с заявками и администрирования;
+- команда начальной инициализации базы данных.=
 """
 import os
 import re
@@ -32,6 +37,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'sd-secret-key-change-in-prod')
 app.json.ensure_ascii = False
 
+# Параметры подключения храним в явном виде: так конфиг проще показать в отчёте.
 DB_CONFIG = {
     "user": "service_desk_user",
     "password": "service123",
@@ -50,6 +56,7 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
 }
 
+# Папка и ограничения для вложений пользователей.
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx',
                       'xls', 'xlsx', 'txt', 'zip', 'rar', '7z'}
@@ -69,6 +76,7 @@ login_manager.login_message_category = 'info'
 
 @login_manager.user_loader
 def load_user(user_uid):
+    """Flask-Login загружает пользователя по его идентификатору."""
     return User.query.get(str(user_uid))
 
 
@@ -76,6 +84,8 @@ def load_user(user_uid):
 # CONSTANTS
 # ============================================================
 SPECIALIST_ROLES = {'specialist', 'manager', 'admin'}
+TASK_QUEUE_FILTERS = {'all', 'my', 'overdue'}
+CLOSED_TICKET_STATUSES = {'resolved', 'closed', 'cancelled'}
 BOARD_COLUMNS = {
     'new':         ('Новые',          ['new', 'assigned', 'approved']),
     'in_progress': ('В работе',        ['in_progress']),
@@ -93,6 +103,7 @@ ROLE_LABELS = {
 # HELPERS
 # ============================================================
 def is_strong_password(pw):
+    """Проверка учебной политики сложности пароля."""
     return (len(pw) >= 8
             and re.search(r'[A-Z]', pw)
             and re.search(r'[a-z]', pw)
@@ -101,15 +112,18 @@ def is_strong_password(pw):
 
 
 def is_specialist(user=None):
+    """Определяет, работает ли пользователь с очередью заявок."""
     u = user or current_user
     return u.role in SPECIALIST_ROLES
 
 
 def _wg_uids(user):
+    """Возвращает идентификаторы рабочих групп пользователя."""
     return [l.work_group_uid for l in user.work_group_links.all()]
 
 
 def _can_view_ticket(ticket):
+    """Проверка, может ли текущий пользователь видеть заявку."""
     if current_user.role == 'admin':
         return True
     if ticket.requester_uid == current_user.user_uid:
@@ -122,6 +136,7 @@ def _can_view_ticket(ticket):
 
 
 def _can_edit_ticket(ticket):
+    """Проверка права на изменение заявки."""
     if current_user.role == 'admin':
         return True
     if is_specialist():
@@ -132,11 +147,13 @@ def _can_edit_ticket(ticket):
 
 
 def _allowed_file(filename):
+    """Проверка расширения загружаемого файла."""
     return ('.' in filename
             and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS)
 
 
 def _unread_count():
+    """Количество непрочитанных уведомлений в шапке сайта."""
     if current_user.is_authenticated:
         return Notification.query.filter_by(
             user_uid=current_user.user_uid, is_read=False).count()
@@ -188,7 +205,7 @@ def inject_globals():
 # ============================================================
 @app.cli.command('init-db')
 def init_db():
-    """Initialize schema and default data."""
+    """Создаёт схему БД и заполняет систему начальными учебными данными."""
     from sqlalchemy import text
     from sqlalchemy.exc import SQLAlchemyError
     db.session.execute(text('CREATE SCHEMA IF NOT EXISTS sm'))
@@ -196,9 +213,9 @@ def init_db():
     try:
         db.create_all()
     except SQLAlchemyError:
-        # Existing installations can have UUID columns in base tables while
-        # ORM models use String(36). In that case create_all() may fail when
-        # creating new FK tables. Continue with explicit SQL below.
+        # В учебной среде схема могла создаваться по частям и в разных версиях.
+        # Если ORM не может корректно достроить таблицы, продолжаем работу
+        # и создаём недостающие объекты явным SQL ниже.
         db.session.rollback()
 
     db.session.execute(text("""
@@ -710,6 +727,13 @@ def tickets_board():
 
 
 def _task_queue_query(filter_name='all', performer_uid=None, work_group_uid=None):
+    """
+    Формирует выборку для доски заявок.
+
+    Администратор видит все заявки, а руководители и специалисты —
+    только заявки своих рабочих групп. Поверх этого накладываются
+    фильтры по исполнителю и типу выборки.
+    """
     query = Ticket.query.join(ServiceCatalog, Ticket.catalog_uid == ServiceCatalog.catalog_uid)
     if current_user.role == 'admin':
         if work_group_uid:
@@ -725,7 +749,7 @@ def _task_queue_query(filter_name='all', performer_uid=None, work_group_uid=None
         query = query.filter(
             Ticket.deadline_at != None,
             Ticket.deadline_at < datetime.utcnow(),
-            ~Ticket.status.in_(['resolved', 'closed', 'cancelled'])
+            ~Ticket.status.in_(CLOSED_TICKET_STATUSES)
         )
     if performer_uid:
         query = query.filter(Ticket.performer_uid == performer_uid)
@@ -745,7 +769,7 @@ def list_task_queue():
     if not is_specialist():
         return jsonify({'error': 'Доступ запрещён'}), 403
     filter_name = request.args.get('filter', 'all')
-    if filter_name not in {'all', 'my', 'overdue'}:
+    if filter_name not in TASK_QUEUE_FILTERS:
         filter_name = 'all'
     user_id = request.args.get('user_id') or None
     work_group_uid = request.args.get('work_group_uid') or None
@@ -770,6 +794,7 @@ def list_task_queue():
 @app.route('/tickets/new', methods=['POST'])
 @login_required
 def create_ticket_form():
+    """Создание заявки из обычной HTML-формы на главной странице."""
     catalog_uid = request.form.get('catalog_uid', '').strip()
     summary = request.form.get('summary', '').strip()
     description = request.form.get('description', '').strip()
@@ -781,6 +806,8 @@ def create_ticket_form():
         flash('Услуга не найдена', 'error')
         return redirect('/')
 
+    # Для формы используем стандартный сценарий: новая заявка, приоритет
+    # берём из каталога услуг, а инициатор является заявителем.
     ticket = Ticket(
         ticket_number=generate_ticket_number(),
         catalog_uid=catalog_uid,
@@ -807,6 +834,7 @@ def create_ticket_form():
 @app.route('/api/tickets', methods=['POST'])
 @login_required
 def create_ticket():
+    """Создание заявки через JSON API."""
     data = request.get_json() or {}
     summary     = (data.get('summary') or '').strip()
     description = (data.get('description') or '').strip()
@@ -825,6 +853,7 @@ def create_ticket():
     deadline       = compute_deadline(catalog)
     initial_status = 'pending_approval' if catalog.approval_required else 'new'
 
+    # Если услуга требует согласования, заявка сразу уходит в отдельный статус.
     ticket = Ticket(
         ticket_number=ticket_number,
         catalog_uid=catalog_uid,
@@ -878,11 +907,13 @@ def ticket_detail(ticket_uid):
 @app.route('/api/tickets/<ticket_uid>', methods=['GET'])
 @login_required
 def get_ticket(ticket_uid):
+    """Возвращает полную карточку заявки для фронтенда."""
     ticket = Ticket.query.get_or_404(ticket_uid)
     if not _can_view_ticket(ticket):
         return jsonify({'error': 'Доступ запрещён'}), 403
 
     comments = []
+    # Внутренние комментарии показываем только тем, кто работает с заявкой.
     for pv in ticket.param_values.filter(
             TicketParamValue.param_type.in_(['comment', 'internal_comment'])
     ).order_by(TicketParamValue.create_date).all():
@@ -991,6 +1022,13 @@ def update_ticket_form(ticket_uid):
 @app.route('/api/tickets/<ticket_uid>/update', methods=['POST'])
 @login_required
 def update_ticket(ticket_uid):
+    """
+    Универсальный JSON-маршрут изменения заявки.
+
+    Через параметр action обрабатываются разные операции:
+    взять заявку, назначить исполнителя, сменить статус, согласовать,
+    отредактировать поля или удалить запись.
+    """
     ticket = Ticket.query.get_or_404(ticket_uid)
     data   = request.get_json() or {}
     action = data.get('action')
@@ -1002,6 +1040,7 @@ def update_ticket(ticket_uid):
     now    = datetime.utcnow()
 
     if action == 'take':
+        # Специалист самостоятельно берёт заявку в работу.
         if not is_specialist():
             return jsonify({'error': 'Только специалист может взять заявку'}), 403
         old_perf = ticket.performer_uid
@@ -1015,6 +1054,7 @@ def update_ticket(ticket_uid):
                              exclude_uid=current_user.user_uid)
 
     elif action == 'assign':
+        # Руководитель или администратор назначает исполнителя вручную.
         if current_user.role not in ('admin', 'manager'):
             return jsonify({'error': 'Недостаточно прав'}), 403
         new_perf = data.get('performer_uid') or None
@@ -1038,6 +1078,7 @@ def update_ticket(ticket_uid):
                    ticket_uid=ticket.ticket_uid)
 
     elif action == 'status':
+        # Простая смена статуса с записью в историю изменений.
         new_status = data.get('status')
         valid = ['new', 'assigned', 'in_progress', 'on_hold',
                  'pending_approval', 'resolved', 'closed', 'cancelled']
@@ -1055,6 +1096,7 @@ def update_ticket(ticket_uid):
                              exclude_uid=current_user.user_uid)
 
     elif action == 'approve':
+        # Согласовать заявку может только тот, кому назначен текущий шаг.
         approval_uid = data.get('approval_uid')
         decision     = data.get('decision')
         comment      = (data.get('comment') or '').strip()
@@ -1066,6 +1108,7 @@ def update_ticket(ticket_uid):
         process_approval_decision(ticket, approval, decision, comment, current_user.user_uid)
 
     elif action == 'edit':
+        # Обновление основных полей карточки заявки.
         new_summary = (data.get('summary') or '').strip()
         new_desc    = (data.get('description') or '').strip()
         new_prio    = data.get('priority')
@@ -1081,6 +1124,7 @@ def update_ticket(ticket_uid):
             ticket.priority = new_prio
 
     elif action == 'delete':
+        # Полное удаление оставляем только администратору.
         if current_user.role != 'admin':
             return jsonify({'error': 'Только администратор может удалять заявки'}), 403
         db.session.delete(ticket)
@@ -1099,6 +1143,7 @@ def update_ticket(ticket_uid):
 @app.post('/tickets/<ticket_uid>/assign')
 @login_required
 def api_assign_ticket(ticket_uid):
+    """Короткий API назначения исполнителя прямо с доски заявок."""
     if current_user.role not in ('admin', 'manager'):
         return jsonify({'error': 'Недостаточно прав'}), 403
     data = request.get_json() or {}
@@ -1133,6 +1178,7 @@ def api_assign_ticket(ticket_uid):
 @app.post('/tickets/<ticket_uid>/status')
 @login_required
 def api_ticket_status(ticket_uid):
+    """Упрощённая смена статуса из таблицы заявок."""
     ticket = Ticket.query.get_or_404(ticket_uid)
     if not _can_edit_ticket(ticket):
         return jsonify({'error': 'Доступ запрещён'}), 403
@@ -1425,6 +1471,7 @@ def admin_users():
 @app.route('/admin/create-user', methods=['GET', 'POST'])
 @login_required
 def create_user():
+    """Создание пользователя администратором."""
     if current_user.role != 'admin':
         return 'Доступ запрещён', 403
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
@@ -1445,6 +1492,7 @@ def create_user():
         wg_uid      = request.form.get('work_group_uid') or None
         manager_uid = request.form.get('manager_uid') or None
 
+        # Эти значения возвращаем обратно в форму, если при сохранении будет ошибка.
         form_data = {
             'last_name': last_name, 'first_name': first_name,
             'middle_name': middle_name or '', 'email': email,
@@ -1471,6 +1519,7 @@ def create_user():
                                    all_users=all_users, success=True,
                                    temp_login=user_name, temp_password=temp_pw)
         except Exception as e:
+            # Сырые ошибки БД переводим в понятные сообщения для интерфейса.
             db.session.rollback()
             err_str = str(e)
             if 'value too long' in err_str or 'StringDataRightTruncation' in err_str:
@@ -1496,6 +1545,7 @@ def create_user():
 @app.route('/admin/edit-user/<user_uid>', methods=['GET', 'POST'])
 @login_required
 def edit_user(user_uid):
+    """Редактирование карточки пользователя."""
     if current_user.role != 'admin':
         return 'Доступ запрещён', 403
     user = User.query.get_or_404(user_uid)
@@ -1506,11 +1556,11 @@ def edit_user(user_uid):
     ).order_by(User.last_name).all()
 
     if request.method == 'POST':
-        # Required fields: keep old value only if form sends empty string
+        # Обязательные поля не затираем пустыми строками.
         user.first_name  = request.form.get('first_name', '').strip() or user.first_name
         user.last_name   = request.form.get('last_name', '').strip() or user.last_name
         user.email       = request.form.get('email', '').strip() or user.email
-        # Optional fields: allow clearing by setting to None when blank
+        # Необязательные поля можно очистить, оставив пустое значение.
         user.middel_name = request.form.get('middle_name', '').strip() or None
         user.mobile      = format_mobile(request.form.get('mobile', '').strip()) or None
         user.work_phone  = request.form.get('work_phone', '').strip() or None
@@ -1537,6 +1587,7 @@ def edit_user(user_uid):
 @app.route('/admin/delete-user/<user_uid>', methods=['POST'])
 @login_required
 def delete_user(user_uid):
+    """В учебной версии удаление реализовано как деактивация учётной записи."""
     if current_user.role != 'admin':
         if request.is_json:
             return jsonify({'error': 'Доступ запрещён'}), 403
@@ -1559,6 +1610,7 @@ def delete_user(user_uid):
 @app.route('/admin/reset-password/<user_uid>', methods=['POST'])
 @login_required
 def admin_reset_password(user_uid):
+    """Сбрасывает пароль и возвращает новый временный пароль пользователю."""
     if current_user.role != 'admin':
         return jsonify({'error': 'Доступ запрещён'}), 403
     user = User.query.get_or_404(user_uid)
@@ -1575,6 +1627,7 @@ def admin_reset_password(user_uid):
 @app.route('/admin/categories')
 @login_required
 def admin_categories():
+    """Страница управления категориями и услугами каталога."""
     if current_user.role != 'admin':
         return 'Доступ запрещён', 403
     cats = ServiceCatalog.query.filter_by(parent_uid=None).order_by(ServiceCatalog.catalog_name).all()
@@ -1589,6 +1642,7 @@ def admin_categories():
 @app.route('/admin/create-category', methods=['GET', 'POST'])
 @login_required
 def create_category():
+    """Создание категории верхнего уровня или отдельной услуги."""
     if current_user.role != 'admin':
         return 'Доступ запрещён', 403
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
@@ -1605,6 +1659,7 @@ def create_category():
         prio       = request.form.get('priority', 'medium')
         sla_uid    = request.form.get('sla_uid') or None
         appr       = 'approval_required' in request.form
+        # Если указан родительский раздел, значит создаём услугу внутри категории.
         cat_type   = 'service' if parent_uid else 'category'
         db.session.add(ServiceCatalog(
             catalog_name=name, catalog_path=f'/{name.replace(" ","_")}',
@@ -1624,6 +1679,7 @@ def create_category():
 @app.route('/admin/edit-category/<cat_uid>', methods=['GET', 'POST'])
 @login_required
 def edit_category(cat_uid):
+    """Редактирование существующей записи каталога."""
     if current_user.role != 'admin':
         return 'Доступ запрещён', 403
     cat = ServiceCatalog.query.get_or_404(cat_uid)
@@ -1659,6 +1715,7 @@ def edit_category(cat_uid):
 @app.route('/admin/toggle-category/<cat_uid>', methods=['POST'])
 @login_required
 def toggle_category(cat_uid):
+    """Быстрое включение и выключение активности записи каталога."""
     if current_user.role != 'admin':
         return jsonify({'error': 'Доступ запрещён'}), 403
     cat = ServiceCatalog.query.get_or_404(cat_uid)
@@ -1670,6 +1727,12 @@ def toggle_category(cat_uid):
 @app.route('/admin/delete-category/<cat_uid>', methods=['POST'])
 @login_required
 def delete_category(cat_uid):
+    """
+    Удаление записи каталога.
+
+    Если на категорию или услугу уже ссылаются заявки, удаление запрещаем,
+    чтобы не ломать историю работы системы.
+    """
     if current_user.role != 'admin':
         if request.is_json:
             return jsonify({'error': 'Доступ запрещён'}), 403
@@ -1683,7 +1746,7 @@ def delete_category(cat_uid):
             return jsonify({'error': msg}), 400
         flash(msg, 'error')
         return redirect('/admin/categories')
-    # Also delete child services if this is a top-level category
+    # Для верхнего раздела дополнительно проверяем вложенные услуги.
     for child in cat.children.all():
         if Ticket.query.filter_by(catalog_uid=child.catalog_uid).count() == 0:
             db.session.delete(child)
