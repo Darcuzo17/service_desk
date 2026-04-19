@@ -22,12 +22,12 @@ from models import (db, User, Password, UserRole, WorkGroup, UserWorkGroup,
                     SlaPolicy, ServiceCatalog,
                     TicketApproval, Ticket, TicketHistory, TicketParamValue,
                     Attachment, Notification, gen_uuid,
-    create_user_db, reset_password_db, verify_password,
-    _set_password_hash, _ensure_role, _ensure_work_group,
-    generate_ticket_number, compute_deadline,
-    add_ticket_history, notify, notify_ticket_update,
-    create_approval_chain, process_approval_decision, format_mobile,
-)
+                    create_user_db, reset_password_db, verify_password,
+                    _set_password_hash, _ensure_role, _ensure_work_group,
+                    generate_ticket_number, compute_deadline,
+                    add_ticket_history, notify, notify_ticket_update,
+                    create_approval_chain, process_approval_decision, format_mobile,
+                    )
 
 # ============================================================
 # APP INIT
@@ -91,7 +91,8 @@ BOARD_COLUMNS = {
     'on_hold':     ('Приостановлено',  ['on_hold', 'pending_approval', 'rejected']),
     'done':        ('Завершено',       ['resolved', 'closed', 'cancelled']),
 }
-PRIORITIES = {'low': 'Низкий', 'medium': 'Средний', 'high': 'Высокий', 'critical': 'Критический'}
+PRIORITIES = {'low': 'Низкий', 'medium': 'Средний',
+              'high': 'Высокий', 'critical': 'Критический'}
 ROLE_LABELS = {
     'user': 'Пользователь',
     'specialist': 'Task Executor',
@@ -101,19 +102,21 @@ ROLE_LABELS = {
 # ============================================================
 # HELPERS
 # ============================================================
-def is_strong_password(pw):
+
+
+def is_strong_password(password_value):
     """Проверка учебной политики сложности пароля."""
-    return (len(pw) >= 8
-            and re.search(r'[A-Z]', pw)
-            and re.search(r'[a-z]', pw)
-            and re.search(r'[0-9]', pw)
-            and re.search(r'[!@#$%^&*(),.?":{}|<>]', pw))
+    return (len(password_value) >= 8
+            and re.search(r'[A-Z]', password_value)
+            and re.search(r'[a-z]', password_value)
+            and re.search(r'[0-9]', password_value)
+            and re.search(r'[!@#$%^&*(),.?":{}|<>]', password_value))
 
 
 def is_specialist(user=None):
     """Определяет, работает ли пользователь с очередью заявок."""
-    u = user or current_user
-    return u.role in SPECIALIST_ROLES
+    target_user = user or current_user
+    return target_user.role in SPECIALIST_ROLES
 
 
 def _wg_uids(user):
@@ -163,29 +166,30 @@ def _unread_count():
 # JINJA2 FILTERS & GLOBALS
 # ============================================================
 @app.template_filter('status_label')
-def status_label_filter(s):
+def status_label_filter(status_code):
     return {
         'new': 'Новая', 'assigned': 'Назначено', 'in_progress': 'В работе',
         'on_hold': 'Приостановлено', 'pending_approval': 'На согласовании',
         'approved': 'Согласовано', 'rejected': 'Отклонено',
         'resolved': 'Решена', 'closed': 'Закрыта', 'cancelled': 'Отменено',
-    }.get(s, s)
+    }.get(status_code, status_code)
 
 
 @app.template_filter('priority_label')
-def priority_label_filter(p):
-    return PRIORITIES.get(p, p)
+def priority_label_filter(priority_code):
+    return PRIORITIES.get(priority_code, priority_code)
+
 
 @app.template_filter('role_label')
-def role_label_filter(r):
-    return ROLE_LABELS.get(r, r)
+def role_label_filter(role_code):
+    return ROLE_LABELS.get(role_code, role_code)
 
 
 @app.template_filter('datefmt')
-def datefmt_filter(dt, fmt='%d.%m.%Y %H:%M'):
-    if not dt:
+def datefmt_filter(date_value, output_format='%d.%m.%Y %H:%M'):
+    if not date_value:
         return '—'
-    return dt.strftime(fmt)
+    return date_value.strftime(output_format)
 
 
 @app.context_processor
@@ -315,7 +319,8 @@ def init_db():
                             email='admin@company.ru', create_by=SYS))
         db.session.flush()
         db.session.add(Password(user_uid=uid,
-                                passwordhash=generate_password_hash('Admin123!'),
+                                passwordhash=generate_password_hash(
+                                    'Admin123!'),
                                 is_first_login=False))
         db.session.add(UserRole(user_uid=uid, role='admin'))
 
@@ -331,7 +336,7 @@ def init_db():
         db.session.flush()
 
     sla_std = SlaPolicy.query.filter_by(policy_name='Стандартный').first()
-    sla_hi  = SlaPolicy.query.filter_by(policy_name='Высокий').first()
+    sla_hi = SlaPolicy.query.filter_by(policy_name='Высокий').first()
 
     wg_defs = [('IT', 'IT-поддержка'), ('HR', 'Кадры и персонал'),
                ('Security', 'Безопасность'), ('AHO', 'АХО'), ('Finance', 'Бухгалтерия')]
@@ -339,30 +344,49 @@ def init_db():
     for name, desc in wg_defs:
         wg = WorkGroup.query.filter_by(group_name=name).first()
         if not wg:
-            wg = WorkGroup(group_name=name, group_description=desc, create_by=SYS)
+            wg = WorkGroup(group_name=name,
+                           group_description=desc, create_by=SYS)
             db.session.add(wg)
             db.session.flush()
         wg_map[name] = wg.work_group_uid
 
     catalog_data = [
-        ('IT',       'IT-услуги',              'monitor',        'Техническая поддержка, оборудование и ПО', 'IT',      None,  None,              None,     False),
-        ('IT_SUP',   'Локальная поддержка',    'tool',           'Компьютер, принтер, периферия',            'IT',      'IT',  'incident',        'medium', False),
-        ('IT_ACC',   'Доступы и права',         'key',            'Учётные записи, VPN, почта',               'IT',      'IT',  'service_request', 'medium', True),
-        ('IT_SW',    'Программное обеспечение', 'package',        'Установка, лицензии, обновление',          'IT',      'IT',  'service_request', 'low',    False),
-        ('HR',       'Кадры',                   'users',          'Кадровые вопросы, документы и отпуска',    'HR',      None,  None,              None,     False),
-        ('HR_VAC',   'Отпуск',                  'sun',            'Оформление отпуска и отгулов',             'HR',      'HR',  'service_request', 'low',    True),
-        ('HR_DOC',   'Справки',                 'file-text',      'Справка о работе, копии документов',       'HR',      'HR',  'service_request', 'low',    False),
-        ('HR_REG',   'Оформление',              'clipboard',      'Приём, перевод, увольнение',               'HR',      'HR',  'service_request', 'medium', True),
-        ('AHO',      'АХО',                     'home',           'АХО',                                      'AHO',     None,  None,              None,     False),
-        ('AHO_FRN',  'Мебель и оборудование',   'layers',         'Заявки на мебель и инвентарь',             'AHO',     'AHO', 'service_request', 'low',    False),
-        ('AHO_SUP',  'Канцелярия',              'pen-tool',       'Канцелярские товары',                      'AHO',     'AHO', 'service_request', 'low',    False),
-        ('AHO_MOV',  'Переезд',                 'truck',          'Переезд отдела или сотрудника',            'AHO',     'AHO', 'service_request', 'medium', True),
-        ('FIN',      'Бухгалтерия',             'dollar-sign',    'Финансовые вопросы и документы',           'Finance', None,  None,              None,     False),
-        ('FIN_REF',  'Справка о доходах',        'bar-chart-2',    'Справка о доходах, НДФЛ',                  'Finance', 'FIN', 'service_request', 'low',    False),
-        ('FIN_RPT',  'Авансовый отчёт',          'credit-card',    'Оформление авансового отчёта',             'Finance', 'FIN', 'service_request', 'medium', True),
-        ('SEC',      'Безопасность',             'shield',         'ИБ и физическая безопасность',             'Security',None,  None,              None,     False),
-        ('SEC_PASS', 'Пропуск',                  'credit-card',    'Оформление и восстановление пропуска',     'Security','SEC', 'service_request', 'medium', True),
-        ('SEC_INC',  'Инцидент безопасности',    'alert-triangle', 'Сообщение об инциденте',                   'Security','SEC', 'incident',        'high',   False),
+        ('IT',       'IT-услуги',              'monitor',
+         'Техническая поддержка, оборудование и ПО', 'IT',      None,  None,              None,     False),
+        ('IT_SUP',   'Локальная поддержка',    'tool',           'Компьютер, принтер, периферия',
+         'IT',      'IT',  'incident',        'medium', False),
+        ('IT_ACC',   'Доступы и права',         'key',            'Учётные записи, VPN, почта',
+         'IT',      'IT',  'service_request', 'medium', True),
+        ('IT_SW',    'Программное обеспечение', 'package',        'Установка, лицензии, обновление',
+         'IT',      'IT',  'service_request', 'low',    False),
+        ('HR',       'Кадры',                   'users',          'Кадровые вопросы, документы и отпуска',
+         'HR',      None,  None,              None,     False),
+        ('HR_VAC',   'Отпуск',                  'sun',            'Оформление отпуска и отгулов',
+         'HR',      'HR',  'service_request', 'low',    True),
+        ('HR_DOC',   'Справки',                 'file-text',      'Справка о работе, копии документов',
+         'HR',      'HR',  'service_request', 'low',    False),
+        ('HR_REG',   'Оформление',              'clipboard',      'Приём, перевод, увольнение',
+         'HR',      'HR',  'service_request', 'medium', True),
+        ('AHO',      'АХО',                     'home',           'АХО',
+         'AHO',     None,  None,              None,     False),
+        ('AHO_FRN',  'Мебель и оборудование',   'layers',         'Заявки на мебель и инвентарь',
+         'AHO',     'AHO', 'service_request', 'low',    False),
+        ('AHO_SUP',  'Канцелярия',              'pen-tool',       'Канцелярские товары',
+         'AHO',     'AHO', 'service_request', 'low',    False),
+        ('AHO_MOV',  'Переезд',                 'truck',          'Переезд отдела или сотрудника',
+         'AHO',     'AHO', 'service_request', 'medium', True),
+        ('FIN',      'Бухгалтерия',             'dollar-sign',    'Финансовые вопросы и документы',
+         'Finance', None,  None,              None,     False),
+        ('FIN_REF',  'Справка о доходах',        'bar-chart-2',    'Справка о доходах, НДФЛ',
+         'Finance', 'FIN', 'service_request', 'low',    False),
+        ('FIN_RPT',  'Авансовый отчёт',          'credit-card',    'Оформление авансового отчёта',
+         'Finance', 'FIN', 'service_request', 'medium', True),
+        ('SEC',      'Безопасность',             'shield',         'ИБ и физическая безопасность',
+         'Security', None,  None,              None,     False),
+        ('SEC_PASS', 'Пропуск',                  'credit-card',    'Оформление и восстановление пропуска',
+         'Security', 'SEC', 'service_request', 'medium', True),
+        ('SEC_INC',  'Инцидент безопасности',    'alert-triangle', 'Сообщение об инциденте',
+         'Security', 'SEC', 'incident',        'high',   False),
     ]
 
     cat_map = {}
@@ -373,9 +397,11 @@ def init_db():
         if not cat:
             parent_uid = cat_map.get(parent_key)
             if prio == 'high':
-                picked_sla_uid = sla_hi.sla_uid if sla_hi else (sla_std.sla_uid if sla_std else None)
+                picked_sla_uid = sla_hi.sla_uid if sla_hi else (
+                    sla_std.sla_uid if sla_std else None)
             else:
-                picked_sla_uid = sla_std.sla_uid if sla_std else (sla_hi.sla_uid if sla_hi else None)
+                picked_sla_uid = sla_std.sla_uid if sla_std else (
+                    sla_hi.sla_uid if sla_hi else None)
 
             cat = ServiceCatalog(
                 catalog_name=name, catalog_path=path,
@@ -408,7 +434,7 @@ def login():
     show_forgot = False
     if request.method == 'POST':
         login_val = request.form.get('login', '').strip()
-        password  = request.form.get('password', '')
+        password = request.form.get('password', '')
         user = User.query.filter(
             db.func.lower(User.user_name) == login_val.lower()
         ).first()
@@ -443,17 +469,17 @@ def change_password():
     error = None
     if request.method == 'POST':
         password = request.form.get('password', '')
-        confirm  = request.form.get('confirm_password', '')
+        confirm = request.form.get('confirm_password', '')
         if password != confirm:
             error = 'Пароли не совпадают'
         elif not is_strong_password(password):
             error = 'Пароль должен содержать минимум 8 символов, заглавные и строчные буквы, цифру и спецсимвол'
         else:
             pwd = current_user.password_record
-            pwd.passwordhash      = generate_password_hash(password)
-            pwd.is_first_login    = False
+            pwd.passwordhash = generate_password_hash(password)
+            pwd.is_first_login = False
             pwd.must_change_password = False
-            pwd.failed_attempts   = 0
+            pwd.failed_attempts = 0
             db.session.commit()
             flash('Пароль успешно изменён', 'success')
             return redirect('/')
@@ -474,7 +500,7 @@ def logout():
 @app.route('/')
 @login_required
 def home():
-    q    = request.args.get('q', '').strip()
+    q = request.args.get('q', '').strip()
     view = request.args.get('view', 'catalog')
 
     categories = ServiceCatalog.query.filter_by(
@@ -483,7 +509,7 @@ def home():
     for cat in categories:
         cat._children = cat.children.filter_by(is_active=True).all()
 
-    my_tickets     = None
+    my_tickets = None
     search_results = None
 
     if view == 'my_tickets':
@@ -530,6 +556,7 @@ def api_search():
         )
     ).all()
     # Sort: starts-with first, then contains; services before categories
+
     def _cat_rank(c):
         starts = c.catalog_name.lower().startswith(q.lower())
         is_svc = c.catalog_type == 'service'
@@ -537,7 +564,8 @@ def api_search():
     cat_q = sorted(cat_q, key=_cat_rank)[:8]
 
     # Tickets matching query (restricted by role)
-    tq = Ticket.query.join(ServiceCatalog, Ticket.catalog_uid == ServiceCatalog.catalog_uid, isouter=True)
+    tq = Ticket.query.join(ServiceCatalog, Ticket.catalog_uid ==
+                           ServiceCatalog.catalog_uid, isouter=True)
     if not is_specialist():
         tq = tq.filter(db.or_(
             Ticket.requester_uid == current_user.user_uid,
@@ -632,15 +660,16 @@ def profile():
         db.or_(Ticket.requester_uid == current_user.user_uid,
                Ticket.recipient_uid == current_user.user_uid)
     ).order_by(Ticket.created_at.desc()).limit(20).all()
-    manager = User.query.get(current_user.manager_uid) if current_user.manager_uid else None
+    manager = User.query.get(
+        current_user.manager_uid) if current_user.manager_uid else None
     return render_template('profile.html', tickets=tickets, manager=manager)
 
 
 @app.route('/profile/password', methods=['POST'])
 @login_required
 def profile_password():
-    old_pw  = request.form.get('old_password', '')
-    new_pw  = request.form.get('new_password', '')
+    old_pw = request.form.get('old_password', '')
+    new_pw = request.form.get('new_password', '')
     confirm = request.form.get('confirm_password', '')
     if not verify_password(current_user, old_pw):
         flash('Текущий пароль неверен', 'error')
@@ -733,10 +762,12 @@ def _task_queue_query(filter_name='all', performer_uid=None, work_group_uid=None
     только заявки своих рабочих групп. Поверх этого накладываются
     фильтры по исполнителю и типу выборки.
     """
-    query = Ticket.query.join(ServiceCatalog, Ticket.catalog_uid == ServiceCatalog.catalog_uid)
+    query = Ticket.query.join(
+        ServiceCatalog, Ticket.catalog_uid == ServiceCatalog.catalog_uid)
     if current_user.role == 'admin':
         if work_group_uid:
-            query = query.filter(ServiceCatalog.work_group_uid == work_group_uid)
+            query = query.filter(
+                ServiceCatalog.work_group_uid == work_group_uid)
         # admin without wg filter sees all tickets
     else:
         wg_uids = _wg_uids(current_user)
@@ -772,7 +803,8 @@ def list_task_queue():
         filter_name = 'all'
     user_id = request.args.get('user_id') or None
     work_group_uid = request.args.get('work_group_uid') or None
-    tickets = _task_queue_query(filter_name=filter_name, performer_uid=user_id, work_group_uid=work_group_uid).all()
+    tickets = _task_queue_query(
+        filter_name=filter_name, performer_uid=user_id, work_group_uid=work_group_uid).all()
     return jsonify([{
         'ticket_uid': t.ticket_uid,
         'ticket_number': t.ticket_number,
@@ -822,7 +854,8 @@ def create_ticket_form():
     )
     db.session.add(ticket)
     db.session.flush()
-    add_ticket_history(ticket.ticket_uid, 'status', None, 'new', current_user.user_uid)
+    add_ticket_history(ticket.ticket_uid, 'status', None,
+                       'new', current_user.user_uid)
     notify_ticket_update(ticket, f'Создана новая заявка {ticket.ticket_number}',
                          exclude_uid=current_user.user_uid)
     db.session.commit()
@@ -835,7 +868,7 @@ def create_ticket_form():
 def create_ticket():
     """Создание заявки через JSON API."""
     data = request.get_json() or {}
-    summary     = (data.get('summary') or '').strip()
+    summary = (data.get('summary') or '').strip()
     description = (data.get('description') or '').strip()
     catalog_uid = data.get('catalog_uid')
 
@@ -848,8 +881,8 @@ def create_ticket():
     if catalog.catalog_type == 'category':
         return jsonify({'error': 'Выберите конкретную услугу'}), 400
 
-    ticket_number  = generate_ticket_number()
-    deadline       = compute_deadline(catalog)
+    ticket_number = generate_ticket_number()
+    deadline = compute_deadline(catalog)
     initial_status = 'pending_approval' if catalog.approval_required else 'new'
 
     # Если услуга требует согласования, заявка сразу уходит в отдельный статус.
@@ -869,7 +902,8 @@ def create_ticket():
     db.session.add(ticket)
     db.session.flush()
 
-    add_ticket_history(ticket.ticket_uid, 'status', None, initial_status, current_user.user_uid)
+    add_ticket_history(ticket.ticket_uid, 'status', None,
+                       initial_status, current_user.user_uid)
 
     if catalog.approval_required:
         create_approval_chain(ticket, catalog, current_user)
@@ -1004,12 +1038,14 @@ def update_ticket_form(ticket_uid):
     new_performer = request.form.get('performer_uid') or None
     now = datetime.utcnow()
     if new_status and new_status != ticket.status:
-        add_ticket_history(ticket_uid, 'status', ticket.status, new_status, current_user.user_uid)
+        add_ticket_history(ticket_uid, 'status', ticket.status,
+                           new_status, current_user.user_uid)
         ticket.status = new_status
         if new_status == 'resolved':
             ticket.resolved_at = now
     if 'performer_uid' in request.form and new_performer != ticket.performer_uid:
-        add_ticket_history(ticket_uid, 'performer', ticket.performer_uid, new_performer, current_user.user_uid)
+        add_ticket_history(ticket_uid, 'performer', ticket.performer_uid,
+                           new_performer, current_user.user_uid)
         ticket.performer_uid = new_performer
     ticket.updated_at = now
     ticket.updated_by = current_user.user_uid
@@ -1029,25 +1065,27 @@ def update_ticket(ticket_uid):
     отредактировать поля или удалить запись.
     """
     ticket = Ticket.query.get_or_404(ticket_uid)
-    data   = request.get_json() or {}
+    data = request.get_json() or {}
     action = data.get('action')
 
     # Approve only needs the user to be a pending approver — checked inside the branch.
     # All other mutating actions require edit permission.
     if action != 'approve' and not _can_edit_ticket(ticket):
         return jsonify({'error': 'Доступ запрещён'}), 403
-    now    = datetime.utcnow()
+    now = datetime.utcnow()
 
     if action == 'take':
         # Специалист самостоятельно берёт заявку в работу.
         if not is_specialist():
             return jsonify({'error': 'Только специалист может взять заявку'}), 403
         old_perf = ticket.performer_uid
-        old_st   = ticket.status
+        old_st = ticket.status
         ticket.performer_uid = current_user.user_uid
         ticket.status = 'in_progress'
-        add_ticket_history(ticket_uid, 'performer', old_perf, current_user.user_uid, current_user.user_uid)
-        add_ticket_history(ticket_uid, 'status', old_st, 'in_progress', current_user.user_uid)
+        add_ticket_history(ticket_uid, 'performer', old_perf,
+                           current_user.user_uid, current_user.user_uid)
+        add_ticket_history(ticket_uid, 'status', old_st,
+                           'in_progress', current_user.user_uid)
         notify_ticket_update(ticket,
                              f'Заявку {ticket.ticket_number} взял в работу {current_user.full_name()}',
                              exclude_uid=current_user.user_uid)
@@ -1066,12 +1104,14 @@ def update_ticket(ticket_uid):
             ).first()
             if not member:
                 return jsonify({'error': "Performer is not in the ticket's work group"}), 400
-        old_st   = ticket.status
-        add_ticket_history(ticket_uid, 'performer', ticket.performer_uid, new_perf, current_user.user_uid)
+        old_st = ticket.status
+        add_ticket_history(ticket_uid, 'performer',
+                           ticket.performer_uid, new_perf, current_user.user_uid)
         ticket.performer_uid = new_perf
         ticket.status = 'in_progress' if new_perf else 'new'
         if old_st != ticket.status:
-            add_ticket_history(ticket_uid, 'status', old_st, ticket.status, current_user.user_uid)
+            add_ticket_history(ticket_uid, 'status', old_st,
+                               ticket.status, current_user.user_uid)
         if new_perf:
             notify(new_perf, f'Вам назначена заявка {ticket.ticket_number}',
                    ticket_uid=ticket.ticket_uid)
@@ -1084,7 +1124,8 @@ def update_ticket(ticket_uid):
         if new_status not in valid:
             return jsonify({'error': 'Недопустимый статус'}), 400
         old_st = ticket.status
-        add_ticket_history(ticket_uid, 'status', old_st, new_status, current_user.user_uid)
+        add_ticket_history(ticket_uid, 'status', old_st,
+                           new_status, current_user.user_uid)
         ticket.status = new_status
         if new_status == 'resolved':
             ticket.resolved_at = now
@@ -1097,29 +1138,32 @@ def update_ticket(ticket_uid):
     elif action == 'approve':
         # Согласовать заявку может только тот, кому назначен текущий шаг.
         approval_uid = data.get('approval_uid')
-        decision     = data.get('decision')
-        comment      = (data.get('comment') or '').strip()
+        decision = data.get('decision')
+        comment = (data.get('comment') or '').strip()
         approval = TicketApproval.query.filter_by(
             approval_uid=approval_uid, approver_uid=current_user.user_uid, status='pending',
         ).first()
         if not approval:
             return jsonify({'error': 'Запись согласования не найдена'}), 404
-        process_approval_decision(ticket, approval, decision, comment, current_user.user_uid)
+        process_approval_decision(
+            ticket, approval, decision, comment, current_user.user_uid)
 
     elif action == 'edit':
         # Обновление основных полей карточки заявки.
         new_summary = (data.get('summary') or '').strip()
-        new_desc    = (data.get('description') or '').strip()
-        new_prio    = data.get('priority')
+        new_desc = (data.get('description') or '').strip()
+        new_prio = data.get('priority')
         if new_summary and new_summary != ticket.summary:
-            add_ticket_history(ticket_uid, 'summary', ticket.summary, new_summary, current_user.user_uid)
+            add_ticket_history(
+                ticket_uid, 'summary', ticket.summary, new_summary, current_user.user_uid)
             ticket.summary = new_summary
         if new_desc and new_desc != ticket.description:
             add_ticket_history(ticket_uid, 'description',
                                ticket.description[:80], new_desc[:80], current_user.user_uid)
             ticket.description = new_desc
         if new_prio and new_prio != ticket.priority:
-            add_ticket_history(ticket_uid, 'priority', ticket.priority, new_prio, current_user.user_uid)
+            add_ticket_history(ticket_uid, 'priority',
+                               ticket.priority, new_prio, current_user.user_uid)
             ticket.priority = new_prio
 
     elif action == 'delete':
@@ -1162,10 +1206,13 @@ def api_assign_ticket(ticket_uid):
     old_status = ticket.status
     ticket.performer_uid = performer_uid
     ticket.status = 'in_progress'
-    add_ticket_history(ticket.ticket_uid, 'performer_uid', old_perf, performer_uid, current_user.user_uid)
+    add_ticket_history(ticket.ticket_uid, 'performer_uid',
+                       old_perf, performer_uid, current_user.user_uid)
     if old_status != 'in_progress':
-        add_ticket_history(ticket.ticket_uid, 'status', old_status, 'in_progress', current_user.user_uid)
-    notify(performer_uid, f'You were assigned to ticket {ticket.ticket_number}', ticket.ticket_uid)
+        add_ticket_history(ticket.ticket_uid, 'status',
+                           old_status, 'in_progress', current_user.user_uid)
+    notify(performer_uid,
+           f'You were assigned to ticket {ticket.ticket_number}', ticket.ticket_uid)
     notify_ticket_update(ticket, f'Исполнитель назначен для заявки {ticket.ticket_number}',
                          exclude_uid=current_user.user_uid)
     ticket.updated_at = datetime.utcnow()
@@ -1191,8 +1238,10 @@ def api_ticket_status(ticket_uid):
     ticket.updated_by = current_user.user_uid
     if new_status == 'resolved':
         ticket.resolved_at = datetime.utcnow()
-    add_ticket_history(ticket.ticket_uid, 'status', old_status, new_status, current_user.user_uid)
-    notify_ticket_update(ticket, f'Status changed to {new_status}', current_user.user_uid)
+    add_ticket_history(ticket.ticket_uid, 'status',
+                       old_status, new_status, current_user.user_uid)
+    notify_ticket_update(
+        ticket, f'Status changed to {new_status}', current_user.user_uid)
     db.session.commit()
     return jsonify({'ok': True})
 
@@ -1212,7 +1261,8 @@ def api_ticket_approve(ticket_uid):
     if not approval:
         return jsonify({'error': 'Запись согласования не найдена'}), 404
     try:
-        process_approval_decision(ticket, approval, decision, comment, current_user.user_uid)
+        process_approval_decision(
+            ticket, approval, decision, comment, current_user.user_uid)
     except ValueError as exc:
         return jsonify({'error': str(exc)}), 400
     ticket.updated_at = datetime.utcnow()
@@ -1230,11 +1280,12 @@ def api_ticket_approve(ticket_uid):
 def bulk_update_tickets():
     if not is_specialist():
         return jsonify({'error': 'Доступ запрещён'}), 403
-    data       = request.get_json() or {}
-    action     = data.get('action')
+    data = request.get_json() or {}
+    action = data.get('action')
     new_status = data.get('status')
-    uids       = data.get('ticket_uids', [])
-    valid_statuses = ['in_progress', 'on_hold', 'resolved', 'closed', 'cancelled']
+    uids = data.get('ticket_uids', [])
+    valid_statuses = ['in_progress', 'on_hold',
+                      'resolved', 'closed', 'cancelled']
     if action != 'bulk_status':
         return jsonify({'error': 'Неизвестное действие'}), 400
     if new_status not in valid_statuses:
@@ -1243,7 +1294,8 @@ def bulk_update_tickets():
         return jsonify({'error': 'Нет заявок для обновления'}), 400
     now = datetime.utcnow()
     Ticket.query.filter(Ticket.ticket_uid.in_(uids)).update(
-        {'status': new_status, 'updated_at': now, 'updated_by': current_user.user_uid},
+        {'status': new_status, 'updated_at': now,
+            'updated_by': current_user.user_uid},
         synchronize_session=False,
     )
     db.session.commit()
@@ -1331,9 +1383,9 @@ def upload_attachment(ticket_uid):
     f = request.files['file']
     if not f.filename or not _allowed_file(f.filename):
         return jsonify({'error': 'Недопустимый тип файла'}), 400
-    filename   = secure_filename(f.filename)
+    filename = secure_filename(f.filename)
     saved_name = f"{gen_uuid()}_{filename}"
-    save_path  = os.path.join(app.config['UPLOAD_FOLDER'], saved_name)
+    save_path = os.path.join(app.config['UPLOAD_FOLDER'], saved_name)
     f.save(save_path)
     size_kb = round(os.path.getsize(save_path) / 1024, 1)
     att = Attachment(
@@ -1416,8 +1468,10 @@ def dashboard():
     if not is_specialist():
         return redirect('/')
 
-    my_wg_uids = _wg_uids(current_user) if current_user.role != 'admin' else None
-    base = Ticket.query.join(ServiceCatalog, Ticket.catalog_uid == ServiceCatalog.catalog_uid)
+    my_wg_uids = _wg_uids(
+        current_user) if current_user.role != 'admin' else None
+    base = Ticket.query.join(
+        ServiceCatalog, Ticket.catalog_uid == ServiceCatalog.catalog_uid)
     if my_wg_uids:
         base = base.filter(ServiceCatalog.work_group_uid.in_(my_wg_uids))
 
@@ -1427,7 +1481,7 @@ def dashboard():
     ).order_by(Ticket.deadline_at.asc().nullslast()).all()
 
     all_new = base.filter(Ticket.status == 'new', Ticket.performer_uid == None
-              ).order_by(Ticket.created_at.desc()).limit(10).all()
+                          ).order_by(Ticket.created_at.desc()).limit(10).all()
 
     overdue_list = [t for t in base.filter(
         Ticket.status.in_(['new', 'assigned', 'in_progress']),
@@ -1474,21 +1528,22 @@ def create_user():
     if current_user.role != 'admin':
         return 'Доступ запрещён', 403
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
-    all_users   = User.query.filter_by(is_deactivated=False).order_by(User.last_name).all()
+    all_users = User.query.filter_by(
+        is_deactivated=False).order_by(User.last_name).all()
 
     if request.method == 'POST':
-        last_name   = request.form['last_name'].strip()
-        first_name  = request.form['first_name'].strip()
+        last_name = request.form['last_name'].strip()
+        first_name = request.form['first_name'].strip()
         middle_name = request.form.get('middle_name', '').strip() or None
-        email       = request.form['email'].strip()
-        mobile      = request.form.get('mobile', '').strip() or None
-        work_phone  = request.form.get('work_phone', '').strip() or None
-        gender      = request.form.get('gender', '').strip() or None
-        title       = request.form.get('title', '').strip() or None
-        department  = request.form.get('department', '').strip() or None
-        company     = request.form.get('company', '').strip() or None
-        role        = request.form.get('role', 'user')
-        wg_uid      = request.form.get('work_group_uid') or None
+        email = request.form['email'].strip()
+        mobile = request.form.get('mobile', '').strip() or None
+        work_phone = request.form.get('work_phone', '').strip() or None
+        gender = request.form.get('gender', '').strip() or None
+        title = request.form.get('title', '').strip() or None
+        department = request.form.get('department', '').strip() or None
+        company = request.form.get('company', '').strip() or None
+        role = request.form.get('role', 'user')
+        wg_uid = request.form.get('work_group_uid') or None
         manager_uid = request.form.get('manager_uid') or None
 
         # Эти значения возвращаем обратно в форму, если при сохранении будет ошибка.
@@ -1549,27 +1604,30 @@ def edit_user(user_uid):
         return 'Доступ запрещён', 403
     user = User.query.get_or_404(user_uid)
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
-    all_users   = User.query.filter(
+    all_users = User.query.filter(
         User.is_deactivated == False,
         User.user_uid != user_uid,
     ).order_by(User.last_name).all()
 
     if request.method == 'POST':
         # Обязательные поля не затираем пустыми строками.
-        user.first_name  = request.form.get('first_name', '').strip() or user.first_name
-        user.last_name   = request.form.get('last_name', '').strip() or user.last_name
-        user.email       = request.form.get('email', '').strip() or user.email
+        user.first_name = request.form.get(
+            'first_name', '').strip() or user.first_name
+        user.last_name = request.form.get(
+            'last_name', '').strip() or user.last_name
+        user.email = request.form.get('email', '').strip() or user.email
         # Необязательные поля можно очистить, оставив пустое значение.
         user.middel_name = request.form.get('middle_name', '').strip() or None
-        user.mobile      = format_mobile(request.form.get('mobile', '').strip()) or None
-        user.work_phone  = request.form.get('work_phone', '').strip() or None
-        user.title       = request.form.get('title', '').strip() or None
-        user.department  = request.form.get('department', '').strip() or None
-        user.company     = request.form.get('company', '').strip() or None
-        user.manager_uid    = request.form.get('manager_uid') or None
+        user.mobile = format_mobile(
+            request.form.get('mobile', '').strip()) or None
+        user.work_phone = request.form.get('work_phone', '').strip() or None
+        user.title = request.form.get('title', '').strip() or None
+        user.department = request.form.get('department', '').strip() or None
+        user.company = request.form.get('company', '').strip() or None
+        user.manager_uid = request.form.get('manager_uid') or None
         user.is_deactivated = 'is_deactivated' in request.form
-        user.update_date    = datetime.utcnow()
-        user.update_by      = current_user.user_uid
+        user.update_date = datetime.utcnow()
+        user.update_by = current_user.user_uid
         _ensure_role(user.user_uid, request.form.get('role', user.role))
         new_wg = request.form.get('work_group_uid') or None
         if new_wg:
@@ -1629,7 +1687,8 @@ def admin_categories():
     """Страница управления категориями и услугами каталога."""
     if current_user.role != 'admin':
         return 'Доступ запрещён', 403
-    cats = ServiceCatalog.query.filter_by(parent_uid=None).order_by(ServiceCatalog.catalog_name).all()
+    cats = ServiceCatalog.query.filter_by(
+        parent_uid=None).order_by(ServiceCatalog.catalog_name).all()
     for c in cats:
         c._services = c.children.order_by(ServiceCatalog.catalog_name).all()
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
@@ -1645,23 +1704,24 @@ def create_category():
     if current_user.role != 'admin':
         return 'Доступ запрещён', 403
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
-    top_cats = ServiceCatalog.query.filter_by(catalog_type='category', parent_uid=None, is_active=True).all()
+    top_cats = ServiceCatalog.query.filter_by(
+        catalog_type='category', parent_uid=None, is_active=True).all()
     slas = SlaPolicy.query.filter_by(is_active=True).all()
 
     if request.method == 'POST':
-        name       = request.form['catalog_name'].strip()
-        desc       = request.form.get('catalog_description', '').strip() or None
-        icon       = request.form.get('catalog_icon', 'briefcase')
-        wg_uid     = request.form.get('work_group_uid') or None
+        name = request.form['catalog_name'].strip()
+        desc = request.form.get('catalog_description', '').strip() or None
+        icon = request.form.get('catalog_icon', 'briefcase')
+        wg_uid = request.form.get('work_group_uid') or None
         parent_uid = request.form.get('parent_uid') or None
-        ttype      = request.form.get('ticket_type', 'service_request')
-        prio       = request.form.get('priority', 'medium')
-        sla_uid    = request.form.get('sla_uid') or None
-        appr       = 'approval_required' in request.form
+        ttype = request.form.get('ticket_type', 'service_request')
+        prio = request.form.get('priority', 'medium')
+        sla_uid = request.form.get('sla_uid') or None
+        appr = 'approval_required' in request.form
         # Если указан родительский раздел, значит создаём услугу внутри категории.
-        cat_type   = 'service' if parent_uid else 'category'
+        cat_type = 'service' if parent_uid else 'category'
         db.session.add(ServiceCatalog(
-            catalog_name=name, catalog_path=f'/{name.replace(" ","_")}',
+            catalog_name=name, catalog_path=f'/{name.replace(" ", "_")}',
             catalog_type=cat_type, catalog_description=desc, catalog_icon=icon,
             work_group_uid=wg_uid, parent_uid=parent_uid, ticket_type=ttype,
             priority=prio, sla_uid=sla_uid, approval_required=appr,
@@ -1691,18 +1751,21 @@ def edit_category(cat_uid):
     slas = SlaPolicy.query.filter_by(is_active=True).all()
 
     if request.method == 'POST':
-        cat.catalog_name        = request.form.get('catalog_name', '').strip() or cat.catalog_name
-        cat.catalog_description = request.form.get('catalog_description', '').strip() or cat.catalog_description
-        cat.catalog_icon        = request.form.get('catalog_icon', cat.catalog_icon)
-        cat.work_group_uid      = request.form.get('work_group_uid') or cat.work_group_uid
-        cat.parent_uid          = request.form.get('parent_uid') or cat.parent_uid
-        cat.ticket_type         = request.form.get('ticket_type', cat.ticket_type)
-        cat.priority            = request.form.get('priority', cat.priority)
-        cat.sla_uid             = request.form.get('sla_uid') or cat.sla_uid
-        cat.approval_required   = 'approval_required' in request.form
-        cat.is_active           = 'is_active' in request.form
-        cat.update_date         = datetime.utcnow()
-        cat.update_by           = current_user.user_uid
+        cat.catalog_name = request.form.get(
+            'catalog_name', '').strip() or cat.catalog_name
+        cat.catalog_description = request.form.get(
+            'catalog_description', '').strip() or cat.catalog_description
+        cat.catalog_icon = request.form.get('catalog_icon', cat.catalog_icon)
+        cat.work_group_uid = request.form.get(
+            'work_group_uid') or cat.work_group_uid
+        cat.parent_uid = request.form.get('parent_uid') or cat.parent_uid
+        cat.ticket_type = request.form.get('ticket_type', cat.ticket_type)
+        cat.priority = request.form.get('priority', cat.priority)
+        cat.sla_uid = request.form.get('sla_uid') or cat.sla_uid
+        cat.approval_required = 'approval_required' in request.form
+        cat.is_active = 'is_active' in request.form
+        cat.update_date = datetime.utcnow()
+        cat.update_by = current_user.user_uid
         db.session.commit()
         flash('Запись обновлена', 'success')
         return redirect('/admin/categories')
@@ -1796,7 +1859,8 @@ def create_work_group():
             return jsonify({'error': 'Группа уже существует'}), 400
         flash('Группа уже существует', 'error')
         return redirect('/admin/work-groups')
-    wg = WorkGroup(group_name=name, group_description=desc, create_by=current_user.user_uid)
+    wg = WorkGroup(group_name=name, group_description=desc,
+                   create_by=current_user.user_uid)
     db.session.add(wg)
     db.session.commit()
     if request.is_json:

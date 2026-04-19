@@ -101,17 +101,20 @@ class User(UserMixin, db.Model):
 
     def primary_work_group(self):
         """Возвращает основную рабочую группу пользователя."""
-        link = self.work_group_links.filter_by(is_primary=True).first()
-        if link:
-            return link.work_group
-        link = self.work_group_links.first()
-        if link:
-            return link.work_group
+        primary_link = self.work_group_links.filter_by(is_primary=True).first()
+        if primary_link:
+            return primary_link.work_group
+        fallback_link = self.work_group_links.first()
+        if fallback_link:
+            return fallback_link.work_group
         return None
 
     def all_work_groups(self):
         """Возвращает все рабочие группы пользователя в порядке назначения."""
-        return [l.work_group for l in self.work_group_links.order_by(UserWorkGroup.assigned_date).all()]
+        return [
+            work_group_link.work_group
+            for work_group_link in self.work_group_links.order_by(UserWorkGroup.assigned_date).all()
+        ]
 
       
 # ---------------------------------------------------------------------------
@@ -282,10 +285,10 @@ class Ticket(db.Model):
         """Проверяет, просрочена ли заявка относительно рассчитанного дедлайна."""
         if not self.deadline_at or self.status in ('resolved', 'closed', 'cancelled'):
             return False
-        now = (datetime.now(self.deadline_at.tzinfo)
-               if self.deadline_at.tzinfo
-               else datetime.utcnow())
-        return self.deadline_at < now
+        current_time = (datetime.now(self.deadline_at.tzinfo)
+                        if self.deadline_at.tzinfo
+                        else datetime.utcnow())
+        return self.deadline_at < current_time
 
 
 # ---------------------------------------------------------------------------
@@ -458,14 +461,14 @@ def translit(text_ru: str) -> str:
     """Простая транслитерация кириллицы в латиницу."""
     if not text_ru:
         return ''
-    result = []
-    for ch in text_ru.upper():
+    transliterated_chars = []
+    for symbol in text_ru.upper():
         try:
-            idx = _RUS.index(ch)
-            result.append(_ENG[idx])
+            alphabet_index = _RUS.index(symbol)
+            transliterated_chars.append(_ENG[alphabet_index])
         except ValueError:
             pass
-    return ''.join(result)
+    return ''.join(transliterated_chars)
 
 
 # ---------------------------------------------------------------------------
@@ -473,15 +476,15 @@ def translit(text_ru: str) -> str:
 # ---------------------------------------------------------------------------
 def generate_login(last_name: str, first_name: str, middle_name: str = None) -> str:
     """Генерирует логин вида `Ivanov.II` и делает его уникальным."""
-    base_ln = translit(last_name)[:8]
-    base_fn = translit(first_name)[:1]
-    base_mn = translit(middle_name)[:1] if middle_name else ''
-    base = f"{base_ln}.{base_fn}{base_mn}"
-    login = base
-    cnt = 0
+    base_last_name = translit(last_name)[:8]
+    base_first_name = translit(first_name)[:1]
+    base_middle_name = translit(middle_name)[:1] if middle_name else ''
+    base_login = f"{base_last_name}.{base_first_name}{base_middle_name}"
+    login = base_login
+    suffix_index = 0
     while User.query.filter_by(user_name=login).first():
-        cnt += 1
-        login = f"{base}{cnt}"
+        suffix_index += 1
+        login = f"{base_login}{suffix_index}"
     return login
 
 
@@ -490,16 +493,16 @@ def generate_login(last_name: str, first_name: str, middle_name: str = None) -> 
 # ---------------------------------------------------------------------------
 def generate_password() -> str:
     """Создаёт временный пароль с буквами разного регистра, цифрами и спецсимволами."""
-    chars = string.ascii_letters + string.digits + '!@#$%&*'
-    parts = [
+    password_characters = string.ascii_letters + string.digits + '!@#$%&*'
+    password_parts = [
         random.choice(string.ascii_uppercase),
         random.choice(string.ascii_lowercase),
         random.choice(string.digits),
         random.choice('!@#$%&*'),
     ]
-    parts += [random.choice(chars) for _ in range(8)]
-    random.shuffle(parts)
-    return ''.join(parts)
+    password_parts += [random.choice(password_characters) for _ in range(8)]
+    random.shuffle(password_parts)
+    return ''.join(password_parts)
 
 
 # ---------------------------------------------------------------------------
@@ -509,10 +512,10 @@ def format_mobile(mobile: str):
     """Приводит телефон к формату `+7 (XXX) XXX-XX-XX`."""
     if not mobile:
         return None
-    digits = re.sub(r'\D', '', mobile)
-    if len(digits) >= 10:
-        digits = digits[-10:]
-        return f"+7 ({digits[0:3]}) {digits[3:6]}-{digits[6:8]}-{digits[8:10]}"
+    phone_digits = re.sub(r'\D', '', mobile)
+    if len(phone_digits) >= 10:
+        phone_digits = phone_digits[-10:]
+        return f"+7 ({phone_digits[0:3]}) {phone_digits[3:6]}-{phone_digits[6:8]}-{phone_digits[8:10]}"
     return None
 
 
@@ -523,10 +526,10 @@ def normalize_gender(gender: str):
     """Нормализует пол к значениям `M`, `F` или `O`."""
     if not gender:
         return None
-    g = gender.upper().strip()
-    if g.startswith('М') or g.startswith('M'):
+    normalized_input = gender.upper().strip()
+    if normalized_input.startswith('М') or normalized_input.startswith('M'):
         return 'M'
-    if g.startswith('Ж') or g.startswith('F'):
+    if normalized_input.startswith('Ж') or normalized_input.startswith('F'):
         return 'F'
     return 'O'
 
@@ -536,9 +539,9 @@ def normalize_gender(gender: str):
 # ---------------------------------------------------------------------------
 def generate_ticket_number() -> str:
     """Генерирует номер заявки вида `SD-2026-0001`."""
-    count = db.session.query(func.count(Ticket.ticket_uid)).scalar() or 0
+    ticket_count = db.session.query(func.count(Ticket.ticket_uid)).scalar() or 0
     year = datetime.utcnow().year
-    return f"SD-{year}-{(count + 1):04d}"
+    return f"SD-{year}-{(ticket_count + 1):04d}"
 
 
 # ---------------------------------------------------------------------------
@@ -556,12 +559,12 @@ def create_user_db(last_name, first_name, middle_name, email, mobile,
     """
     temp_password = generate_password()
     user_name = generate_login(last_name, first_name, middle_name)
-    uid = gen_uuid()
+    user_uid = gen_uuid()
     # При первичной инициализации системы пользователя может создавать сам код.
-    sys_uid = creator_uid or uid
+    system_user_uid = creator_uid or user_uid
 
-    user = User(
-        user_uid=uid,
+    new_user = User(
+        user_uid=user_uid,
         user_name=user_name,
         first_name=first_name,
         last_name=last_name,
@@ -574,15 +577,15 @@ def create_user_db(last_name, first_name, middle_name, email, mobile,
         department=department or None,
         company=company or None,
         manager_uid=manager_uid,
-        create_by=sys_uid,
-        update_by=sys_uid,
+        create_by=system_user_uid,
+        update_by=system_user_uid,
     )
-    db.session.add(user)
+    db.session.add(new_user)
     db.session.flush()
 
-    _set_password_hash(user.user_uid, temp_password)
-    _ensure_role(user.user_uid, role, creator_uid)
-    _ensure_work_group(user.user_uid, work_group_uid)
+    _set_password_hash(new_user.user_uid, temp_password)
+    _ensure_role(new_user.user_uid, role, creator_uid)
+    _ensure_work_group(new_user.user_uid, work_group_uid)
     db.session.commit()
 
     return user_name, temp_password
@@ -606,11 +609,11 @@ def reset_password_db(user_name: str):
 
     _set_password_hash(user.user_uid, temp_password)
 
-    pwd = Password.query.filter_by(user_uid=user.user_uid).first()
-    if pwd:
-        pwd.is_first_login = True
-        pwd.must_change_password = True
-        pwd.failed_attempts = 0
+    password_record = Password.query.filter_by(user_uid=user.user_uid).first()
+    if password_record:
+        password_record.is_first_login = True
+        password_record.must_change_password = True
+        password_record.failed_attempts = 0
 
     db.session.commit()
     return temp_password
@@ -621,21 +624,21 @@ def reset_password_db(user_name: str):
 # ---------------------------------------------------------------------------
 def _set_password_hash(user_uid: str, plain_password: str):
     """Сохраняет или обновляет хэш пароля пользователя."""
-    pwd = Password.query.filter_by(user_uid=user_uid).first()
-    hashed = generate_password_hash(plain_password)
-    if pwd:
-        pwd.passwordhash = hashed
+    password_record = Password.query.filter_by(user_uid=user_uid).first()
+    password_hash = generate_password_hash(plain_password)
+    if password_record:
+        password_record.passwordhash = password_hash
     else:
-        pwd = Password(user_uid=user_uid, passwordhash=hashed,
-                       is_first_login=True, must_change_password=False, failed_attempts=0)
-        db.session.add(pwd)
+        password_record = Password(user_uid=user_uid, passwordhash=password_hash,
+                                   is_first_login=True, must_change_password=False, failed_attempts=0)
+        db.session.add(password_record)
 
 
 def _ensure_role(user_uid: str, role: str, creator_uid: str = None):
     """Создаёт роль пользователя или обновляет её, если запись уже есть."""
-    existing = UserRole.query.filter_by(user_uid=user_uid).first()
-    if existing:
-        existing.role = role
+    existing_role = UserRole.query.filter_by(user_uid=user_uid).first()
+    if existing_role:
+        existing_role.role = role
     else:
         db.session.add(UserRole(user_uid=user_uid, role=role))
 
@@ -644,9 +647,9 @@ def _ensure_work_group(user_uid: str, work_group_uid: str = None):
     """Привязывает пользователя к рабочей группе, если она указана."""
     if not work_group_uid:
         return
-    existing = UserWorkGroup.query.filter_by(
+    existing_work_group_link = UserWorkGroup.query.filter_by(
         user_uid=user_uid, work_group_uid=work_group_uid).first()
-    if not existing:
+    if not existing_work_group_link:
         db.session.add(UserWorkGroup(
             user_uid=user_uid,
             work_group_uid=work_group_uid,
@@ -663,28 +666,28 @@ def verify_password(user: User, plain_password: str) -> bool:
 
 def add_ticket_history(ticket_uid, field_name, old_value, new_value, changed_by_uid):
     """Добавляет запись в историю изменений заявки."""
-    h = TicketHistory(
+    history_record = TicketHistory(
         ticket_uid=ticket_uid,
         field_name=field_name,
         old_value=str(old_value) if old_value is not None else None,
         new_value=str(new_value) if new_value is not None else None,
         changed_by=changed_by_uid,
     )
-    db.session.add(h)
+    db.session.add(history_record)
 
 
 def compute_deadline(catalog):
     """Рассчитывает дедлайн заявки по SLA или по приоритету по умолчанию."""
-    hours = 24
+    deadline_hours = 24
     if getattr(catalog, 'sla', None) and getattr(catalog.sla, 'resolution_time_hours', None):
-        hours = catalog.sla.resolution_time_hours
+        deadline_hours = catalog.sla.resolution_time_hours
     elif getattr(catalog, 'priority', None) == 'critical':
-        hours = 4
+        deadline_hours = 4
     elif getattr(catalog, 'priority', None) == 'high':
-        hours = 8
+        deadline_hours = 8
     elif getattr(catalog, 'priority', None) == 'low':
-        hours = 72
-    return datetime.utcnow() + timedelta(hours=hours)
+        deadline_hours = 72
+    return datetime.utcnow() + timedelta(hours=deadline_hours)
 
 
 def notify(user_uid, message, ticket_uid=None):
@@ -698,10 +701,13 @@ def notify(user_uid, message, ticket_uid=None):
 
 def notify_ticket_update(ticket, message, exclude_uid=None):
     """Рассылает уведомление всем участникам заявки, кроме исключённого пользователя."""
-    recipients = {ticket.requester_uid, ticket.recipient_uid, ticket.performer_uid}
-    recipients = {uid for uid in recipients if uid and uid != exclude_uid}
-    for uid in recipients:
-        notify(uid, message, ticket_uid=ticket.ticket_uid)
+    recipient_user_ids = {ticket.requester_uid, ticket.recipient_uid, ticket.performer_uid}
+    recipient_user_ids = {
+        recipient_uid for recipient_uid in recipient_user_ids
+        if recipient_uid and recipient_uid != exclude_uid
+    }
+    for recipient_uid in recipient_user_ids:
+        notify(recipient_uid, message, ticket_uid=ticket.ticket_uid)
 
 
 def audit(user_uid, action, entity_type=None, entity_uid=None, details=None, ip=None):
@@ -722,12 +728,12 @@ def create_approval_chain(ticket, catalog, requester):
     if not approver_uid:
         # Если у пользователя не указан руководитель, выбираем первого доступного
         # manager/admin как резервный вариант для демонстрации процесса.
-        manager = db.session.execute(text(
+        fallback_manager = db.session.execute(text(
             "SELECT u.user_uid FROM sm.users u "
             "JOIN sm.user_roles r ON r.user_uid = u.user_uid "
             "WHERE r.role IN ('manager','admin') LIMIT 1"
         )).first()
-        approver_uid = manager.user_uid if manager else None
+        approver_uid = fallback_manager.user_uid if fallback_manager else None
     if approver_uid:
         db.session.add(TicketApproval(
             ticket_uid=ticket.ticket_uid,
@@ -744,8 +750,8 @@ def create_approval_chain(ticket, catalog, requester):
 
 def process_approval_decision(ticket, approval, decision, comment, actor_uid):
     """Обрабатывает решение по шагу согласования заявки."""
-    valid = {'approved', 'rejected'}
-    if decision not in valid:
+    valid_decisions = {'approved', 'rejected'}
+    if decision not in valid_decisions:
         raise ValueError('Недопустимое решение согласования')
     old_status = approval.status
     approval.status = decision
@@ -760,14 +766,14 @@ def process_approval_decision(ticket, approval, decision, comment, actor_uid):
         notify_ticket_update(ticket, f'Заявка {ticket.ticket_number} отклонена', exclude_uid=actor_uid)
         return
 
-    pending = TicketApproval.query.filter_by(
+    pending_approvals = TicketApproval.query.filter_by(
         ticket_uid=ticket.ticket_uid,
         status='pending',
     ).order_by(TicketApproval.step_order).all()
-    if pending:
-        nxt = pending[0]
-        if nxt.approver_uid:
-            notify(nxt.approver_uid,
+    if pending_approvals:
+        next_approval = pending_approvals[0]
+        if next_approval.approver_uid:
+            notify(next_approval.approver_uid,
                    f'Требуется согласование заявки {ticket.ticket_number}',
                    ticket_uid=ticket.ticket_uid)
     else:
