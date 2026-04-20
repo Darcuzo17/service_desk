@@ -175,6 +175,16 @@ def status_label_filter(status_code):
     }.get(status_code, status_code)
 
 
+@app.template_filter('column_label')
+def column_label_filter(column_key):
+    return {
+        'new_unassigned': 'Новые',
+        'new_assigned': 'Назначено',
+        'in_progress': 'В работе',
+        'resolved': 'Решена',
+    }.get(column_key, column_key)
+
+
 @app.template_filter('priority_label')
 def priority_label_filter(priority_code):
     return PRIORITIES.get(priority_code, priority_code)
@@ -1229,13 +1239,18 @@ def api_ticket_status(ticket_uid):
     if not _can_edit_ticket(ticket):
         return jsonify({'error': 'Доступ запрещён'}), 403
     new_status = (request.get_json() or {}).get('status')
-    allowed = {'new', 'in_progress', 'resolved'}
+    allowed = {'new', 'assigned', 'in_progress', 'on_hold', 'pending_approval', 'approved', 'rejected', 'resolved', 'closed', 'cancelled'}
     if new_status not in allowed:
         return jsonify({'error': 'Invalid status'}), 400
     old_status = ticket.status
     ticket.status = new_status
     ticket.updated_at = datetime.utcnow()
     ticket.updated_by = current_user.user_uid
+    if new_status == 'new':
+        ticket.performer_uid = None
+    elif new_status == 'assigned':
+        if ticket.performer_uid is None:
+            ticket.performer_uid = current_user.user_uid
     if new_status == 'resolved':
         ticket.resolved_at = datetime.utcnow()
     add_ticket_history(ticket.ticket_uid, 'status',
@@ -1475,16 +1490,41 @@ def dashboard():
     if my_wg_uids:
         base = base.filter(ServiceCatalog.work_group_uid.in_(my_wg_uids))
 
+    # Получаем все заявки специалиста, кроме полностью закрытых
+    all_tickets = base.filter(
+        ~Ticket.status.in_(['closed', 'cancelled'])
+    ).order_by(Ticket.created_at.desc()).all()
+
+    # Группируем по новой логике канбана
+    kanban_data = {
+        'new_unassigned': [],
+        'new_assigned': [],
+        'in_progress': [],
+        'resolved': []
+    }
+    for ticket in all_tickets:
+        if ticket.status in ('new', 'assigned'):
+            if ticket.performer_uid is None:
+                kanban_data['new_unassigned'].append(ticket)
+            else:
+                kanban_data['new_assigned'].append(ticket)
+        elif ticket.status == 'in_progress':
+            kanban_data['in_progress'].append(ticket)
+        elif ticket.status == 'resolved':
+            kanban_data['resolved'].append(ticket)
+
+    # Определяем порядок колонок
+    ordered_kanban_data = kanban_data
+
     my_active = base.filter(
         Ticket.performer_uid == current_user.user_uid,
-        Ticket.status.in_(['assigned', 'in_progress'])
+        Ticket.status.in_(['in_progress'])
     ).order_by(Ticket.deadline_at.asc().nullslast()).all()
 
     all_new = base.filter(Ticket.status == 'new', Ticket.performer_uid == None
                           ).order_by(Ticket.created_at.desc()).limit(10).all()
 
     overdue_list = [t for t in base.filter(
-        Ticket.status.in_(['new', 'assigned', 'in_progress']),
         Ticket.deadline_at != None,
         Ticket.deadline_at < datetime.utcnow(),
     ).order_by(Ticket.deadline_at).limit(20).all()]
@@ -1496,7 +1536,7 @@ def dashboard():
 
     stats = {
         'my_active':         len(my_active),
-        'all_new':           base.filter(Ticket.status == 'new').count(),
+        'all_new':           len(kanban_data['new_unassigned']),
         'overdue':           len(overdue_list),
         'pending_approval':  len(pending_approval),
     }
@@ -1504,7 +1544,7 @@ def dashboard():
     return render_template('dashboard.html',
                            my_active=my_active, all_new=all_new,
                            all_overdue=overdue_list, pending_approval=pending_approval,
-                           stats=stats)
+                           stats=stats, kanban_data=ordered_kanban_data)
 
 
 # ============================================================

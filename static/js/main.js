@@ -124,6 +124,65 @@ function toggleNotifDropdown() {
   if (!dd.classList.contains('hidden')) markNotificationsRead();
 }
 
+function initKanban() {
+  const cards = document.querySelectorAll('.ticket-card');
+  const columns = document.querySelectorAll('.kanban-column');
+
+  cards.forEach(card => {
+    card.addEventListener('dragstart', handleDragStart);
+  });
+
+  columns.forEach(column => {
+    column.addEventListener('dragover', handleDragOver);
+    column.addEventListener('drop', handleDrop);
+  });
+
+  let draggedCard = null;
+
+  function handleDragStart(e) {
+    draggedCard = e.target.closest('.ticket-card');
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    const targetColumn = e.target.closest('.kanban-column');
+    if (!targetColumn || !draggedCard) return;
+
+    const newStatus = targetColumn.dataset.status;
+    const ticketUid = draggedCard.dataset.ticketUid;
+
+    // Отправляем запрос на изменение статуса
+    fetch('/tickets/' + ticketUid + '/status', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ status: newStatus })
+    })
+    .then(response => {
+      if (response.ok) {
+        // Перемещаем карточку
+        targetColumn.appendChild(draggedCard);
+        // Обновляем страницу для актуальных stats
+        location.reload();
+      } else {
+        alert('Ошибка при изменении статуса');
+        return response.json().then(data => alert(data.error || 'Ошибка'));
+      }
+    })
+    .catch(error => {
+      console.error('Error:', error);
+      alert('Ошибка при изменении статуса');
+    });
+  }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
   await loadUsers();
   await applyFilter();
@@ -132,4 +191,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('wg-select')?.addEventListener('change', applyFilter);
   setInterval(pollNotifications, 15000);
   pollNotifications();
+  // Инициализация канбана, если есть элементы
+  if (document.querySelector('.kanban-board')) {
+    initKanban();
+  }
 });

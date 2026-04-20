@@ -3,12 +3,12 @@
 {% block content %}
 <div class="grid grid-2">
   <div class="card">
-    <h3>Мои активные</h3>
-    <p>{{ stats.my_active }}</p>
-  </div>
-  <div class="card">
     <h3>Новые</h3>
     <p>{{ stats.all_new }}</p>
+  </div>
+  <div class="card">
+    <h3>Мои активные</h3>
+    <p>{{ stats.my_active }}</p>
   </div>
   <div class="card">
     <h3>Просроченные</h3>
@@ -19,21 +19,22 @@
     <p>{{ stats.pending_approval }}</p>
   </div>
 </div>
-<div class="card">
-  <h3>Мои активные заявки</h3>
-  <table class="table">
-    <tr>
-      <th>Номер</th>
-      <th>Тема</th>
-      <th>Дедлайн</th>
-    </tr>
-    {% for t in my_active %}<tr>
-      <td>{{ t.ticket_number }}</td>
-      <td>{{ t.summary }}</td>
-      <td>{{ t.deadline_at|datefmt }}</td>
-    </tr>{% else %}<tr>
-      <td colspan="3">Нет данных</td>
-    </tr>{% endfor %}
-  </table>
+
+<div class="kanban-board">
+  {% for column_key, tickets in kanban_data.items() %}
+  <div class="kanban-column" data-status="{% if column_key == 'new_unassigned' %}new{% elif column_key == 'new_assigned' %}assigned{% else %}{{ column_key }}{% endif %}">
+    <h3>{{ column_key|column_label }}</h3>
+    {% for ticket in tickets %}
+    <div class="ticket-card" data-ticket-uid="{{ ticket.ticket_uid }}" draggable="true">
+      <a href="/ticket/{{ ticket.ticket_uid }}">
+        <div class="ticket-number">{{ ticket.ticket_number }}</div>
+        <div class="ticket-summary">{{ ticket.summary }}</div>
+        <div class="ticket-deadline">Дедлайн: {{ ticket.deadline_at|datefmt if ticket.deadline_at else 'Не установлен' }}</div>
+        <span class="ticket-priority priority-{{ ticket.priority }}">{{ ticket.priority|priority_label }}</span>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
 </div>
 {% endblock %}
