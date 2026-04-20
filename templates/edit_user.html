@@ -4,31 +4,32 @@
 <div class="card">
   <h2>Редактировать пользователя</h2>
   <form method="post" class="grid grid-2">
-    <input name="last_name" value="{{ user.last_name }}" required>
-    <input name="first_name" value="{{ user.first_name }}" required>
-    <input name="middle_name" value="{{ user.middel_name or '' }}">
-    <input type="email" name="email" value="{{ user.email or '' }}" required>
-    <input name="mobile" value="{{ user.mobile or '' }}">
-    <input name="work_phone" value="{{ user.work_phone or '' }}">
-    <input name="title" value="{{ user.title or '' }}">
-    <input name="department" value="{{ user.department or '' }}">
-    <input name="company" value="{{ user.company or '' }}">
-    <select name="role">
+    <label for="last_name">Фамилия:</label><input name="last_name" value="{{ user.last_name }}" required>
+    <label for="last_name">Имя:</label><input name="first_name" value="{{ user.first_name }}" required>
+    <label for="last_name">Отчество:</label><input name="middle_name" value="{{ user.middel_name or '' }}">
+    <label for="last_name">Email:</label><input type="email" name="email" value="{{ user.email or '' }}" required>
+    <label for="last_name">Мобильный:</label><input name="mobile" value="{{ user.mobile or '' }}" d>
+    <label for="last_name">Рабочий телефон:</label><input name="work_phone" value="{{ user.work_phone or '' }}">
+    <label for="last_name">Должность:</label><input name="title" value="{{ user.title or '' }}">
+    <label for="last_name">Отдел:</label><input name="department" value="{{ user.department or '' }}">
+    <label for="last_name">Компания:</label><input name="company" value="{{ user.company or '' }}">
+    <label for="role">Роль:</label><select name="role">
       <option value="user" {% if user.role=='user' %}selected{% endif %}>Пользователь</option>
       <option value="specialist" {% if user.role=='specialist' %}selected{% endif %}>Специалист</option>
       <option value="manager" {% if user.role=='manager' %}selected{% endif %}>Менеджер</option>
       <option value="admin" {% if user.role=='admin' %}selected{% endif %}>Администратор</option>
     </select>
-    <select name="work_group_uid">
-      <option value="">Рабочая группа</option>{% for wg in work_groups %}<option value="{{ wg.work_group_uid }}">{{
+    <label for="work_group_uid">Рабочая группа:</label><select name="work_group_uid">
+      <option value=""></option>{% for wg in work_groups %}<option value="{{ wg.work_group_uid }}">{{
         wg.group_name }}</option>{% endfor %}
     </select>
-    <select name="manager_uid">
-      <option value="">Руководитель</option>{% for u in all_users %}<option value="{{ u.user_uid }}" {% if
+    <label for="manager_uid">Руководитель:</label><select name="manager_uid">
+      <option value=""></option>{% for u in all_users %}<option value="{{ u.user_uid }}" {% if
         user.manager_uid==u.user_uid %}selected{% endif %}>{{ u.full_name() }}</option>{% endfor %}
     </select>
-    <label><input type="checkbox" name="is_deactivated" {% if user.is_deactivated %}checked{% endif %}>
-      Деактивирован</label>
+    <label>Деактивирован</label> <input type="checkbox" name="is_deactivated" {% if user.is_deactivated %}checked{% endif %}>
+    <div></div>
+    <div></div>
     <div class="actions"><button class="btn btn-primary" type="submit">Сохранить</button><a class="btn"
         href="{{ url_for('admin_users') }}">Назад</a></div>
   </form>

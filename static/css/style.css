@@ -345,3 +345,9 @@ small.muted,
 #notif-dropdown li:last-child {
   border-bottom: 0;
 }
+
+label {
+  display: block;
+  font-weight: bold;
+  padding: 10px;
+}

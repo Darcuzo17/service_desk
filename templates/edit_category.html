@@ -4,35 +4,42 @@
 <div class="card">
   <h2>Редактировать запись каталога</h2>
   <form method="post" class="grid grid-2">
-    <input name="catalog_name" value="{{ cat.catalog_name }}" required>
-    <input name="catalog_icon" value="{{ cat.catalog_icon or 'briefcase' }}">
-    <textarea name="catalog_description">{{ cat.catalog_description or '' }}</textarea>
+    <label for="catalog_name">Название каталога:</label><input name="catalog_name" value="{{ cat.catalog_name }}"
+      required>
+    <label for="catalog_icon">Иконка каталога:</label><input name="catalog_icon"
+      value="{{ cat.catalog_icon or 'briefcase' }}">
+    <label for="catalog_description">Описание каталога:</label><textarea
+      name="catalog_description">{{ cat.catalog_description or '' }}</textarea>
+    <label for="work_group_uid">Рабочая группа:</label>
     <select name="work_group_uid">
       <option value="">Рабочая группа</option>{% for wg in work_groups %}<option value="{{ wg.work_group_uid }}" {% if
         cat.work_group_uid==wg.work_group_uid %}selected{% endif %}>{{ wg.group_name }}</option>{% endfor %}
     </select>
+    <label for="parent_uid">Родительская категория (верхний уровень)</label>
     <select name="parent_uid">
       <option value="">Без родителя</option>{% for c in top_cats %}<option value="{{ c.catalog_uid }}" {% if
         cat.parent_uid==c.catalog_uid %}selected{% endif %}>{{ c.catalog_name }}</option>{% endfor %}
     </select>
+    <label for="ticket_type">Тип заявки:</label>
     <select name="ticket_type">
       <option value="service_request" {% if cat.ticket_type=='service_request' %}selected{% endif %}>Запрос на
         обслуживание</option>
       <option value="incident" {% if cat.ticket_type=='incident' %}selected{% endif %}>Инцидент</option>
     </select>
+    <label for="priority">Приоритет:</label>
     <select name="priority">
       <option value="low" {% if cat.priority=='low' %}selected{% endif %}>Низкий</option>
       <option value="medium" {% if cat.priority=='medium' %}selected{% endif %}>Средний</option>
       <option value="high" {% if cat.priority=='high' %}selected{% endif %}>Высокий</option>
       <option value="critical" {% if cat.priority=='critical' %}selected{% endif %}>Критический</option>
     </select>
+    <label for="sla_uid">SLA-политика:</label>
     <select name="sla_uid">
-      <option value="">— SLA-политика —</option>{% for s in slas %}<option value="{{ s.sla_uid }}" {% if
+      <option value=""></option>{% for s in slas %}<option value="{{ s.sla_uid }}" {% if
         cat.sla_uid==s.sla_uid %}selected{% endif %}>{{ s.policy_name }}</option>{% endfor %}
     </select>
-    <label><input type="checkbox" name="approval_required" {% if cat.approval_required %}checked{% endif %}> Требует
-      согласования</label>
-    <label><input type="checkbox" name="is_active" {% if cat.is_active %}checked{% endif %}> Активна</label>
+    <label> Требует согласования</label><input type="checkbox" name="approval_required" {% if cat.approval_required %}checked{% endif %}>
+    <label>Активна</label><input type="checkbox" name="is_active" {% if cat.is_active %}checked{% endif %}> 
     <div class="actions"><button class="btn btn-primary" type="submit">Сохранить</button><a class="btn"
         href="{{ url_for('admin_categories') }}">Назад</a></div>
   </form>
