@@ -4,7 +4,7 @@
 <div class="card">
   <div class="inline" style="justify-content:space-between;"><h2>Каталог услуг</h2><a class="btn btn-primary" href="{{ url_for('create_category') }}">Добавить</a></div>
   <table class="table">
-    <tr><th>Название</th><th>Тип</th><th>Группа</th><th>Приоритет</th><th>Активность</th><th>Действия</th></tr>
+    <tr><th>Название</th><th>Тип</th><th>Группа</th><th>SLA-политика</th><th>Активность</th><th>Действия</th></tr>
     {% for cat in categories %}
     <tr>
       <td>{{ cat.catalog_name }}</td><td>{{ cat.catalog_type }}</td><td>{{ cat.work_group.group_name if cat.work_group else '—' }}</td><td>{{ cat.priority|priority_label }}</td><td>{{ 'Да' if cat.is_active else 'Нет' }}</td>

@@ -90,8 +90,8 @@ BOARD_COLUMNS = {
     'on_hold':     ('Приостановлено',  ['on_hold', 'pending_approval', 'rejected']),
     'done':        ('Завершено',       ['resolved', 'closed', 'cancelled']),
 }
-PRIORITIES = {'low': 'Низкий', 'medium': '8 часов',
-              'high': 'Сутки', 'critical': '4 часа'}
+PRIORITIES = {'low': '3 дня', 'medium': '8 часов',
+              'high': '1 день', 'critical': '4 часа'}
 ROLE_LABELS = {
     'user': 'Пользователь',
     'specialist': 'Task Executor',
@@ -336,7 +336,7 @@ def init_db():
     if not SlaPolicy.query.first():
         for name, resp, res in [
             ('4 часа', 1, 4), ('8 часов', 4, 8),
-            ('Сутки', 8, 24), ('3 дня', 24, 72),
+            ('1 день', 8, 24), ('3 дня', 24, 72),
         ]:
             db.session.add(SlaPolicy(policy_name=name,
                                      response_time_hours=resp,
@@ -864,11 +864,17 @@ def create_ticket_form():
     db.session.flush()
     add_ticket_history(ticket.ticket_uid, 'status', None,
                        'new', current_user.user_uid)
-    notify_ticket_update(ticket, f'Создана новая заявка {ticket.ticket_number}',
-                         exclude_uid=current_user.user_uid)
+    
+    if catalog.approval_required:
+        create_approval_chain(ticket, catalog, current_user)
+    else:
+        notify_ticket_update(ticket, f'Создана новая заявка {ticket.ticket_number}',
+                             exclude_uid=current_user.user_uid)
+        
     db.session.commit()
     flash(f'Заявка {ticket.ticket_number} создана', 'success')
     return redirect(f'/ticket/{ticket.ticket_uid}')
+
 
 
 @app.route('/api/tickets', methods=['POST'])

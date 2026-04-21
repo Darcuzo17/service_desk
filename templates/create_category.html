@@ -10,7 +10,7 @@
       <option value=""></option>{% for wg in work_groups %}<option value="{{ wg.work_group_uid }}">{{
         wg.group_name }}</option>{% endfor %}
     </select>
-    <label for="parent_uid">Родительская категория (верхний уровень):</label><select name="parent_uid">
+    <label for="parent_uid">Родительская категория:</label><select name="parent_uid">
       <option value=""></option>{% for c in top_cats %}<option value="{{ c.catalog_uid }}">Услуга внутри: {{
         c.catalog_name }}</option>{% endfor %}
     </select>
