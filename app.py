@@ -875,61 +875,6 @@ def create_ticket_form():
     flash(f'Заявка {ticket.ticket_number} создана', 'success')
     return redirect(f'/ticket/{ticket.ticket_uid}')
 
-
-
-@app.route('/api/tickets', methods=['POST'])
-@login_required
-def create_ticket():
-    """Создание заявки через JSON API."""
-    data = request.get_json() or {}
-    summary = (data.get('summary') or '').strip()
-    description = (data.get('description') or '').strip()
-    catalog_uid = data.get('catalog_uid')
-
-    if not summary or not description or not catalog_uid:
-        return jsonify({'error': 'Заполните все обязательные поля'}), 400
-
-    catalog = ServiceCatalog.query.get(catalog_uid)
-    if not catalog or not catalog.is_active:
-        return jsonify({'error': 'Услуга не найдена'}), 400
-    if catalog.catalog_type == 'category':
-        return jsonify({'error': 'Выберите конкретную услугу'}), 400
-
-    ticket_number = generate_ticket_number()
-    deadline = compute_deadline(catalog)
-    initial_status = 'pending_approval' if catalog.approval_required else 'new'
-
-    # Если услуга требует согласования, заявка сразу уходит в отдельный статус.
-    ticket = Ticket(
-        ticket_number=ticket_number,
-        catalog_uid=catalog_uid,
-        summary=summary,
-        description=description,
-        requester_uid=current_user.user_uid,
-        recipient_uid=current_user.user_uid,
-        status=initial_status,
-        priority=catalog.priority or data.get('priority', 'medium'),
-        deadline_at=deadline,
-        created_by=current_user.user_uid,
-        updated_by=current_user.user_uid,
-    )
-    db.session.add(ticket)
-    db.session.flush()
-
-    add_ticket_history(ticket.ticket_uid, 'status', None,
-                       initial_status, current_user.user_uid)
-
-    if catalog.approval_required:
-        create_approval_chain(ticket, catalog, current_user)
-    else:
-        notify_ticket_update(ticket, f'Создана новая заявка {ticket.ticket_number}',
-                             exclude_uid=current_user.user_uid)
-
-    db.session.commit()
-    return jsonify({'success': True, 'ticket_number': ticket.ticket_number,
-                    'ticket_uid': ticket.ticket_uid})
-
-
 # ============================================================
 # TICKET API — GET
 # ============================================================
@@ -1766,19 +1711,6 @@ def edit_category(cat_uid):
 
     return render_template('edit_category.html', cat=cat,
                            work_groups=work_groups, top_cats=top_cats, slas=slas)
-
-
-@app.route('/admin/toggle-category/<cat_uid>', methods=['POST'])
-@login_required
-def toggle_category(cat_uid):
-    """Быстрое включение и выключение активности записи каталога."""
-    if current_user.role != 'admin':
-        return jsonify({'error': 'Доступ запрещён'}), 403
-    cat = ServiceCatalog.query.get_or_404(cat_uid)
-    cat.is_active = not cat.is_active
-    db.session.commit()
-    return jsonify({'success': True, 'is_active': cat.is_active})
-
 
 @app.route('/admin/delete-category/<cat_uid>', methods=['POST'])
 @login_required
