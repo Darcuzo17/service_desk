@@ -32,8 +32,9 @@ def gen_uuid():
 # ---------------------------------------------------------------------------
 class User(UserMixin, db.Model):
     """Пользователь системы Service Desk."""
-    __tablename__ = 'users'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "users"
+    __table_args__ = {"schema": "sm"}
 
     user_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
     user_name = db.Column(db.String(12), unique=True, nullable=False)
@@ -47,7 +48,9 @@ class User(UserMixin, db.Model):
     title = db.Column(db.String(255), nullable=True)
     department = db.Column(db.String(255), nullable=True)
     company = db.Column(db.String(255), nullable=True)
-    manager_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=True)
+    manager_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=True
+    )
     work_status = db.Column(db.String(20), nullable=True)
     is_vip = db.Column(db.Boolean, default=False)
     is_deactivated = db.Column(db.Boolean, default=False)
@@ -55,23 +58,43 @@ class User(UserMixin, db.Model):
     last_loggon_date = db.Column(db.DateTime, nullable=True)
     password_expires = db.Column(db.DateTime, nullable=True)
     create_date = db.Column(db.DateTime, default=datetime.utcnow)
-    update_date = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    update_date = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     create_by = db.Column(db.String(36), nullable=False)
     update_by = db.Column(db.String(36), nullable=True)
 
-    password_record = db.relationship('Password', backref='user', uselist=False,
-                                      foreign_keys='Password.user_uid')
-    work_group_links = db.relationship('UserWorkGroup', backref='user', lazy='dynamic',
-                                       foreign_keys='UserWorkGroup.user_uid')
-    role_record = db.relationship('UserRole', backref='user', uselist=False,
-                                  foreign_keys='UserRole.user_uid')
+    password_record = db.relationship(
+        "Password", backref="user", uselist=False, foreign_keys="Password.user_uid"
+    )
+    work_group_links = db.relationship(
+        "UserWorkGroup",
+        backref="user",
+        lazy="dynamic",
+        foreign_keys="UserWorkGroup.user_uid",
+    )
+    role_record = db.relationship(
+        "UserRole", backref="user", uselist=False, foreign_keys="UserRole.user_uid"
+    )
 
-    tickets_as_requester = db.relationship('Ticket', foreign_keys='Ticket.requester_uid',
-                                           backref='requester', lazy='dynamic')
-    tickets_as_recipient = db.relationship('Ticket', foreign_keys='Ticket.recipient_uid',
-                                           backref='recipient', lazy='dynamic')
-    tickets_as_performer = db.relationship('Ticket', foreign_keys='Ticket.performer_uid',
-                                           backref='performer', lazy='dynamic')
+    tickets_as_requester = db.relationship(
+        "Ticket",
+        foreign_keys="Ticket.requester_uid",
+        backref="requester",
+        lazy="dynamic",
+    )
+    tickets_as_recipient = db.relationship(
+        "Ticket",
+        foreign_keys="Ticket.recipient_uid",
+        backref="recipient",
+        lazy="dynamic",
+    )
+    tickets_as_performer = db.relationship(
+        "Ticket",
+        foreign_keys="Ticket.performer_uid",
+        backref="performer",
+        lazy="dynamic",
+    )
 
     def get_id(self):
         """Flask-Login использует это значение как идентификатор сессии."""
@@ -82,14 +105,14 @@ class User(UserMixin, db.Model):
         parts = [self.last_name, self.first_name]
         if self.middel_name:
             parts.append(self.middel_name)
-        return ' '.join(parts)
+        return " ".join(parts)
 
     @property
     def role(self):
         """Возвращает роль пользователя; по умолчанию это обычный user."""
         if self.role_record:
             return self.role_record.role
-        return 'user'
+        return "user"
 
     @property
     def is_active(self):
@@ -110,20 +133,27 @@ class User(UserMixin, db.Model):
         """Возвращает все рабочие группы пользователя в порядке назначения."""
         return [
             work_group_link.work_group
-            for work_group_link in self.work_group_links.order_by(UserWorkGroup.assigned_date).all()
+            for work_group_link in self.work_group_links.order_by(
+                UserWorkGroup.assigned_date
+            ).all()
         ]
 
-      
+
 # ---------------------------------------------------------------------------
 # sm.passwords
 # ---------------------------------------------------------------------------
 class Password(db.Model):
     """Хранение хэша пароля и технических флагов авторизации."""
-    __tablename__ = 'passwords'
-    __table_args__ = {'schema': 'sm'}
 
-    user_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'),
-                         primary_key=True, nullable=False)
+    __tablename__ = "passwords"
+    __table_args__ = {"schema": "sm"}
+
+    user_uid = db.Column(
+        db.String(36),
+        db.ForeignKey("sm.users.user_uid"),
+        primary_key=True,
+        nullable=False,
+    )
     passwordhash = db.Column(db.Text, nullable=True)
     # Дополнительные поля используются на стороне приложения.
     is_first_login = db.Column(db.Boolean, default=True)
@@ -136,11 +166,14 @@ class Password(db.Model):
 # ---------------------------------------------------------------------------
 class UserRole(db.Model):
     """Роль пользователя внутри системы."""
-    __tablename__ = 'user_roles'
-    __table_args__ = {'schema': 'sm'}
 
-    user_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), primary_key=True)
-    role = db.Column(db.String(32), nullable=False, default='user')
+    __tablename__ = "user_roles"
+    __table_args__ = {"schema": "sm"}
+
+    user_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), primary_key=True
+    )
+    role = db.Column(db.String(32), nullable=False, default="user")
 
 
 # ---------------------------------------------------------------------------
@@ -148,8 +181,9 @@ class UserRole(db.Model):
 # ---------------------------------------------------------------------------
 class WorkGroup(db.Model):
     """Рабочая группа, которая обслуживает заявки своего направления."""
-    __tablename__ = 'work_groups'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "work_groups"
+    __table_args__ = {"schema": "sm"}
 
     work_group_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
     group_name = db.Column(db.String(100), nullable=False)
@@ -157,14 +191,24 @@ class WorkGroup(db.Model):
     group_description = db.Column(db.Text, nullable=True)
     group_owner_uid = db.Column(db.String(36), nullable=True)
     create_date = db.Column(db.DateTime, default=datetime.utcnow)
-    update_date = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    update_date = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     create_by = db.Column(db.String(36), nullable=False)
     update_by = db.Column(db.String(36), nullable=True)
 
-    member_links = db.relationship('UserWorkGroup', backref='work_group', lazy='dynamic',
-                                   foreign_keys='UserWorkGroup.work_group_uid')
-    catalog_items = db.relationship('ServiceCatalog', backref='work_group', lazy='dynamic',
-                                    foreign_keys='ServiceCatalog.work_group_uid')
+    member_links = db.relationship(
+        "UserWorkGroup",
+        backref="work_group",
+        lazy="dynamic",
+        foreign_keys="UserWorkGroup.work_group_uid",
+    )
+    catalog_items = db.relationship(
+        "ServiceCatalog",
+        backref="work_group",
+        lazy="dynamic",
+        foreign_keys="ServiceCatalog.work_group_uid",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -172,12 +216,16 @@ class WorkGroup(db.Model):
 # ---------------------------------------------------------------------------
 class UserWorkGroup(db.Model):
     """Связь пользователя с одной или несколькими рабочими группами."""
-    __tablename__ = 'user_work_groups'
-    __table_args__ = {'schema': 'sm'}
 
-    user_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), primary_key=True)
-    work_group_uid = db.Column(db.String(36), db.ForeignKey('sm.work_groups.work_group_uid'),
-                               primary_key=True)
+    __tablename__ = "user_work_groups"
+    __table_args__ = {"schema": "sm"}
+
+    user_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), primary_key=True
+    )
+    work_group_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.work_groups.work_group_uid"), primary_key=True
+    )
     assigned_date = db.Column(db.DateTime, default=datetime.utcnow)
     is_primary = db.Column(db.Boolean, default=False)
 
@@ -187,8 +235,9 @@ class UserWorkGroup(db.Model):
 # ---------------------------------------------------------------------------
 class SlaPolicy(db.Model):
     """Политика SLA: время реакции и время решения заявки."""
-    __tablename__ = 'sla_policies'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "sla_policies"
+    __table_args__ = {"schema": "sm"}
 
     sla_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
     policy_name = db.Column(db.String(100), nullable=False)
@@ -205,34 +254,44 @@ class SlaPolicy(db.Model):
 # ---------------------------------------------------------------------------
 class ServiceCatalog(db.Model):
     """Каталог услуг и категорий, доступных пользователю при создании заявки."""
-    __tablename__ = 'service_catalog'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "service_catalog"
+    __table_args__ = {"schema": "sm"}
 
     catalog_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
     catalog_name = db.Column(db.String(200), nullable=False)
     catalog_path = db.Column(db.Text, nullable=False)
-    parent_uid = db.Column(db.String(36), db.ForeignKey('sm.service_catalog.catalog_uid'),
-                           nullable=True)
-    catalog_type = db.Column(db.String(50), nullable=False, default='category')
-    work_group_uid = db.Column(db.String(36), db.ForeignKey('sm.work_groups.work_group_uid'),
-                               nullable=True)
-    ticket_type = db.Column(db.String(100), default='service_request')
-    priority = db.Column(db.String(20), default='medium')
+    parent_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.service_catalog.catalog_uid"), nullable=True
+    )
+    catalog_type = db.Column(db.String(50), nullable=False, default="category")
+    work_group_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.work_groups.work_group_uid"), nullable=True
+    )
+    ticket_type = db.Column(db.String(100), default="service_request")
+    priority = db.Column(db.String(20), default="medium")
     approval_required = db.Column(db.Boolean, default=False)
     is_active = db.Column(db.Boolean, default=True)
-    sla_uid = db.Column(db.String(36), db.ForeignKey('sm.sla_policies.sla_uid'), nullable=True)
+    sla_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.sla_policies.sla_uid"), nullable=True
+    )
     create_date = db.Column(db.DateTime, default=datetime.utcnow)
-    update_date = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    update_date = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
     create_by = db.Column(db.String(36), nullable=False)
     update_by = db.Column(db.String(36), nullable=True)
     catalog_description = db.Column(db.Text, nullable=True)
 
-    children = db.relationship('ServiceCatalog',
-                               backref=db.backref('parent', remote_side='ServiceCatalog.catalog_uid'),
-                               lazy='dynamic')
-    tickets = db.relationship('Ticket', backref='catalog', lazy='dynamic',
-                              foreign_keys='Ticket.catalog_uid')
-    sla = db.relationship('SlaPolicy', backref='catalog_items', foreign_keys=[sla_uid])
+    children = db.relationship(
+        "ServiceCatalog",
+        backref=db.backref("parent", remote_side="ServiceCatalog.catalog_uid"),
+        lazy="dynamic",
+    )
+    tickets = db.relationship(
+        "Ticket", backref="catalog", lazy="dynamic", foreign_keys="Ticket.catalog_uid"
+    )
+    sla = db.relationship("SlaPolicy", backref="catalog_items", foreign_keys=[sla_uid])
 
 
 # ---------------------------------------------------------------------------
@@ -240,48 +299,76 @@ class ServiceCatalog(db.Model):
 # ---------------------------------------------------------------------------
 class Ticket(db.Model):
     """Основная сущность системы — заявка пользователя."""
-    __tablename__ = 'tickets'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "tickets"
+    __table_args__ = {"schema": "sm"}
 
     ticket_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
     ticket_number = db.Column(db.String(50), unique=True, nullable=False)
-    catalog_uid = db.Column(db.String(36), db.ForeignKey('sm.service_catalog.catalog_uid'),
-                            nullable=False)
+    catalog_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.service_catalog.catalog_uid"), nullable=False
+    )
     summary = db.Column(db.String(500), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    requester_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=False)
-    recipient_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=False)
-    performer_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=True)
-    status = db.Column(db.String(50), default='new', nullable=False)
-    priority = db.Column(db.String(20), default='medium')
+    requester_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=False
+    )
+    recipient_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=False
+    )
+    performer_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=True
+    )
+    status = db.Column(db.String(50), default="new", nullable=False)
+    priority = db.Column(db.String(20), default="medium")
     deadline_at = db.Column(db.DateTime, nullable=True)
     resolved_at = db.Column(db.DateTime, nullable=True)
     closed_at = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    created_by = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=False)
-    updated_by = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=True)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+    created_by = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=False
+    )
+    updated_by = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=True
+    )
 
-    history = db.relationship('TicketHistory', backref='ticket', lazy='dynamic',
-                              cascade='all, delete-orphan',
-                              foreign_keys='TicketHistory.ticket_uid')
-    param_values = db.relationship('TicketParamValue', backref='ticket', lazy='dynamic',
-                                   cascade='all, delete-orphan',
-                                   foreign_keys='TicketParamValue.ticket_uid')
+    history = db.relationship(
+        "TicketHistory",
+        backref="ticket",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+        foreign_keys="TicketHistory.ticket_uid",
+    )
+    param_values = db.relationship(
+        "TicketParamValue",
+        backref="ticket",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+        foreign_keys="TicketParamValue.ticket_uid",
+    )
 
-    creator = db.relationship('User', foreign_keys=[created_by])
+    creator = db.relationship("User", foreign_keys=[created_by])
 
-    approvals = db.relationship('TicketApproval', backref='ticket', lazy='dynamic',
-                                cascade='all, delete-orphan',
-                                foreign_keys='TicketApproval.ticket_uid')
+    approvals = db.relationship(
+        "TicketApproval",
+        backref="ticket",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+        foreign_keys="TicketApproval.ticket_uid",
+    )
 
     def is_overdue(self):
         """Проверяет, просрочена ли заявка относительно рассчитанного дедлайна."""
-        if not self.deadline_at or self.status in ('resolved', 'closed', 'cancelled'):
+        if not self.deadline_at or self.status in ("resolved", "closed", "cancelled"):
             return False
-        current_time = (datetime.now(self.deadline_at.tzinfo)
-                        if self.deadline_at.tzinfo
-                        else datetime.utcnow())
+        current_time = (
+            datetime.now(self.deadline_at.tzinfo)
+            if self.deadline_at.tzinfo
+            else datetime.utcnow()
+        )
         return self.deadline_at < current_time
 
 
@@ -290,19 +377,25 @@ class Ticket(db.Model):
 # ---------------------------------------------------------------------------
 class TicketHistory(db.Model):
     """История изменений полей заявки."""
-    __tablename__ = 'ticket_history'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "ticket_history"
+    __table_args__ = {"schema": "sm"}
 
     history_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
-    ticket_uid = db.Column(db.String(36), db.ForeignKey('sm.tickets.ticket_uid',
-                           ondelete='CASCADE'), nullable=False)
+    ticket_uid = db.Column(
+        db.String(36),
+        db.ForeignKey("sm.tickets.ticket_uid", ondelete="CASCADE"),
+        nullable=False,
+    )
     field_name = db.Column(db.String(100), nullable=False)
     old_value = db.Column(db.Text, nullable=True)
     new_value = db.Column(db.Text, nullable=True)
-    changed_by = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=False)
+    changed_by = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=False
+    )
     changed_date = db.Column(db.DateTime, default=datetime.utcnow)
 
-    changer = db.relationship('User', foreign_keys=[changed_by])
+    changer = db.relationship("User", foreign_keys=[changed_by])
 
 
 # ---------------------------------------------------------------------------
@@ -310,109 +403,149 @@ class TicketHistory(db.Model):
 # ---------------------------------------------------------------------------
 class TicketParamValue(db.Model):
     """Гибкие параметры заявки: комментарии, согласования, служебные заметки."""
-    __tablename__ = 'ticket_param_values'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "ticket_param_values"
+    __table_args__ = {"schema": "sm"}
 
     param_value_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
-    ticket_uid = db.Column(db.String(36), db.ForeignKey('sm.tickets.ticket_uid',
-                           ondelete='CASCADE'), nullable=False)
+    ticket_uid = db.Column(
+        db.String(36),
+        db.ForeignKey("sm.tickets.ticket_uid", ondelete="CASCADE"),
+        nullable=False,
+    )
     param_name = db.Column(db.String(100), nullable=False)
     param_value = db.Column(db.Text, nullable=True)
     param_type = db.Column(db.String(50), nullable=True)
-    author_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=True)
+    author_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=True
+    )
     create_date = db.Column(db.DateTime, default=datetime.utcnow)
 
-    author_rel = db.relationship('User', foreign_keys=[author_uid])
+    author_rel = db.relationship("User", foreign_keys=[author_uid])
 
 
 class ApprovalRoute(db.Model):
     """Маршрут согласования для конкретной услуги каталога."""
-    __tablename__ = 'approval_routes'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "approval_routes"
+    __table_args__ = {"schema": "sm"}
 
     route_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
-    catalog_uid = db.Column(db.String(36), db.ForeignKey('sm.service_catalog.catalog_uid'), nullable=False)
+    catalog_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.service_catalog.catalog_uid"), nullable=False
+    )
     route_name = db.Column(db.String(200), nullable=False)
     is_active = db.Column(db.Boolean, default=True)
     create_date = db.Column(db.DateTime, default=datetime.utcnow)
-    create_by = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=False)
+    create_by = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=False
+    )
 
-    steps = db.relationship('ApprovalStep', backref='route', lazy='dynamic',
-                            cascade='all, delete-orphan',
-                            foreign_keys='ApprovalStep.route_uid')
+    steps = db.relationship(
+        "ApprovalStep",
+        backref="route",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+        foreign_keys="ApprovalStep.route_uid",
+    )
 
 
 class ApprovalStep(db.Model):
     """Один шаг маршрута согласования."""
-    __tablename__ = 'approval_steps'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "approval_steps"
+    __table_args__ = {"schema": "sm"}
 
     step_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
-    route_uid = db.Column(db.String(36), db.ForeignKey('sm.approval_routes.route_uid'), nullable=False)
+    route_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.approval_routes.route_uid"), nullable=False
+    )
     step_order = db.Column(db.Integer, nullable=False, default=1)
     step_name = db.Column(db.String(200), nullable=True)
-    approver_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=True)
+    approver_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=True
+    )
     approver_role = db.Column(db.String(32), nullable=True)
 
-    approver = db.relationship('User', foreign_keys=[approver_uid])
+    approver = db.relationship("User", foreign_keys=[approver_uid])
 
 
 class TicketApproval(db.Model):
     """Экземпляр шага согласования, созданный уже для конкретной заявки."""
-    __tablename__ = 'ticket_approvals'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "ticket_approvals"
+    __table_args__ = {"schema": "sm"}
 
     approval_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
-    ticket_uid = db.Column(db.String(36), db.ForeignKey('sm.tickets.ticket_uid', ondelete='CASCADE'), nullable=False)
+    ticket_uid = db.Column(
+        db.String(36),
+        db.ForeignKey("sm.tickets.ticket_uid", ondelete="CASCADE"),
+        nullable=False,
+    )
     step_order = db.Column(db.Integer, nullable=False, default=1)
     step_name = db.Column(db.String(200), nullable=True)
-    approver_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=True)
-    status = db.Column(db.String(20), nullable=False, default='pending')
+    approver_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=True
+    )
+    status = db.Column(db.String(20), nullable=False, default="pending")
     comment = db.Column(db.Text, nullable=True)
     decided_at = db.Column(db.DateTime, nullable=True)
     create_date = db.Column(db.DateTime, default=datetime.utcnow)
 
-    approver = db.relationship('User', foreign_keys=[approver_uid])
+    approver = db.relationship("User", foreign_keys=[approver_uid])
 
 
 class Notification(db.Model):
     """Уведомления для пользователей о действиях по заявкам."""
-    __tablename__ = 'notifications'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "notifications"
+    __table_args__ = {"schema": "sm"}
 
     notification_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
-    user_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=False)
-    ticket_uid = db.Column(db.String(36), db.ForeignKey('sm.tickets.ticket_uid'), nullable=True)
+    user_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=False
+    )
+    ticket_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.tickets.ticket_uid"), nullable=True
+    )
     message = db.Column(db.Text, nullable=False)
     is_read = db.Column(db.Boolean, default=False)
     create_date = db.Column(db.DateTime, default=datetime.utcnow)
 
-    ticket_rel = db.relationship('Ticket', foreign_keys=[ticket_uid])
+    ticket_rel = db.relationship("Ticket", foreign_keys=[ticket_uid])
 
 
 class TicketTemplate(db.Model):
     """Шаблон заявки для ускоренного создания типовых обращений."""
-    __tablename__ = 'ticket_templates'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "ticket_templates"
+    __table_args__ = {"schema": "sm"}
 
     template_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
     template_name = db.Column(db.String(200), nullable=False)
-    catalog_uid = db.Column(db.String(36), db.ForeignKey('sm.service_catalog.catalog_uid'), nullable=False)
+    catalog_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.service_catalog.catalog_uid"), nullable=False
+    )
     summary = db.Column(db.String(500), nullable=False)
     description = db.Column(db.Text, nullable=False)
     priority = db.Column(db.String(20), nullable=True)
     is_public = db.Column(db.Boolean, default=False)
-    created_by = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=False)
+    created_by = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=False
+    )
     create_date = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 class AuditLog(db.Model):
     """Журнал аудита действий в системе."""
-    __tablename__ = 'audit_log'
-    __table_args__ = {'schema': 'sm'}
+
+    __tablename__ = "audit_log"
+    __table_args__ = {"schema": "sm"}
 
     audit_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
-    user_uid = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=True)
+    user_uid = db.Column(
+        db.String(36), db.ForeignKey("sm.users.user_uid"), nullable=True
+    )
     action = db.Column(db.String(64), nullable=False)
     entity_type = db.Column(db.String(64), nullable=True)
     entity_uid = db.Column(db.String(36), nullable=True)
@@ -427,14 +560,48 @@ class AuditLog(db.Model):
 # Ниже находятся простые Python-функции, которые дублируют часть логики БД.
 # Для учебного проекта это удобно: код можно читать и тестировать прямо в Python.
 
-_RUS = list('АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЫЭЮЯЬЪ')
-_ENG = ['A','B','V','G','D','E','YO','ZH','Z','I','Y','K','L','M','N','O',
-        'P','R','S','T','U','F','KH','C','CH','SH','SHH','Y','E','YU','YA','','']
+_RUS = list("АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЫЭЮЯЬЪ")
+_ENG = [
+    "A",
+    "B",
+    "V",
+    "G",
+    "D",
+    "E",
+    "YO",
+    "ZH",
+    "Z",
+    "I",
+    "Y",
+    "K",
+    "L",
+    "M",
+    "N",
+    "O",
+    "P",
+    "R",
+    "S",
+    "T",
+    "U",
+    "F",
+    "KH",
+    "C",
+    "CH",
+    "SH",
+    "SHH",
+    "Y",
+    "E",
+    "YU",
+    "YA",
+    "",
+    "",
+]
+
 
 def translit(text_ru: str) -> str:
     """Простая транслитерация кириллицы в латиницу."""
     if not text_ru:
-        return ''
+        return ""
     transliterated_chars = []
     for symbol in text_ru.upper():
         try:
@@ -442,7 +609,7 @@ def translit(text_ru: str) -> str:
             transliterated_chars.append(_ENG[alphabet_index])
         except ValueError:
             pass
-    return ''.join(transliterated_chars)
+    return "".join(transliterated_chars)
 
 
 # ---------------------------------------------------------------------------
@@ -452,7 +619,7 @@ def generate_login(last_name: str, first_name: str, middle_name: str = None) -> 
     """Генерирует логин вида `Ivanov.II` и делает его уникальным."""
     base_last_name = translit(last_name)[:8]
     base_first_name = translit(first_name)[:1]
-    base_middle_name = translit(middle_name)[:1] if middle_name else ''
+    base_middle_name = translit(middle_name)[:1] if middle_name else ""
     base_login = f"{base_last_name}.{base_first_name}{base_middle_name}"
     login = base_login
     suffix_index = 0
@@ -467,16 +634,16 @@ def generate_login(last_name: str, first_name: str, middle_name: str = None) -> 
 # ---------------------------------------------------------------------------
 def generate_password() -> str:
     """Создаёт временный пароль с буквами разного регистра, цифрами и спецсимволами."""
-    password_characters = string.ascii_letters + string.digits + '!@#$%&*'
+    password_characters = string.ascii_letters + string.digits + "!@#$%&*"
     password_parts = [
         random.choice(string.ascii_uppercase),
         random.choice(string.ascii_lowercase),
         random.choice(string.digits),
-        random.choice('!@#$%&*'),
+        random.choice("!@#$%&*"),
     ]
     password_parts += [random.choice(password_characters) for _ in range(8)]
     random.shuffle(password_parts)
-    return ''.join(password_parts)
+    return "".join(password_parts)
 
 
 # ---------------------------------------------------------------------------
@@ -486,7 +653,7 @@ def format_mobile(mobile: str):
     """Приводит телефон к формату `+7 (XXX) XXX-XX-XX`."""
     if not mobile:
         return None
-    phone_digits = re.sub(r'\D', '', mobile)
+    phone_digits = re.sub(r"\D", "", mobile)
     if len(phone_digits) >= 10:
         phone_digits = phone_digits[-10:]
         return f"+7 ({phone_digits[0:3]}) {phone_digits[3:6]}-{phone_digits[6:8]}-{phone_digits[8:10]}"
@@ -501,11 +668,11 @@ def normalize_gender(gender: str):
     if not gender:
         return None
     normalized_input = gender.upper().strip()
-    if normalized_input.startswith('М') or normalized_input.startswith('M'):
-        return 'M'
-    if normalized_input.startswith('Ж') or normalized_input.startswith('F'):
-        return 'F'
-    return 'O'
+    if normalized_input.startswith("М") or normalized_input.startswith("M"):
+        return "M"
+    if normalized_input.startswith("Ж") or normalized_input.startswith("F"):
+        return "F"
+    return "O"
 
 
 # ---------------------------------------------------------------------------
@@ -521,10 +688,22 @@ def generate_ticket_number() -> str:
 # ---------------------------------------------------------------------------
 # CREATE USER  (аналог sm.create_user)
 # ---------------------------------------------------------------------------
-def create_user_db(last_name, first_name, middle_name, email, mobile,
-                   work_phone, gender, title, department, company,
-                   role='user', work_group_uid=None, manager_uid=None,
-                   creator_uid=None) -> tuple:
+def create_user_db(
+    last_name,
+    first_name,
+    middle_name,
+    email,
+    mobile,
+    work_phone,
+    gender,
+    title,
+    department,
+    company,
+    role="user",
+    work_group_uid=None,
+    manager_uid=None,
+    creator_uid=None,
+) -> tuple:
     """
     Создаёт пользователя и возвращает его логин и временный пароль.
 
@@ -603,8 +782,13 @@ def _set_password_hash(user_uid: str, plain_password: str):
     if password_record:
         password_record.passwordhash = password_hash
     else:
-        password_record = Password(user_uid=user_uid, passwordhash=password_hash,
-                                   is_first_login=True, must_change_password=False, failed_attempts=0)
+        password_record = Password(
+            user_uid=user_uid,
+            passwordhash=password_hash,
+            is_first_login=True,
+            must_change_password=False,
+            failed_attempts=0,
+        )
         db.session.add(password_record)
 
 
@@ -622,13 +806,14 @@ def _ensure_work_group(user_uid: str, work_group_uid: str = None):
     if not work_group_uid:
         return
     existing_work_group_link = UserWorkGroup.query.filter_by(
-        user_uid=user_uid, work_group_uid=work_group_uid).first()
+        user_uid=user_uid, work_group_uid=work_group_uid
+    ).first()
     if not existing_work_group_link:
-        db.session.add(UserWorkGroup(
-            user_uid=user_uid,
-            work_group_uid=work_group_uid,
-            is_primary=True
-        ))
+        db.session.add(
+            UserWorkGroup(
+                user_uid=user_uid, work_group_uid=work_group_uid, is_primary=True
+            )
+        )
 
 
 def verify_password(user: User, plain_password: str) -> bool:
@@ -653,31 +838,40 @@ def add_ticket_history(ticket_uid, field_name, old_value, new_value, changed_by_
 def compute_deadline(catalog):
     """Рассчитывает дедлайн заявки по SLA или по приоритету по умолчанию."""
     deadline_hours = 24
-    if getattr(catalog, 'sla', None) and getattr(catalog.sla, 'resolution_time_hours', None):
+    if getattr(catalog, "sla", None) and getattr(
+        catalog.sla, "resolution_time_hours", None
+    ):
         deadline_hours = catalog.sla.resolution_time_hours
-    elif getattr(catalog, 'priority', None) == 'critical':
+    elif getattr(catalog, "priority", None) == "critical":
         deadline_hours = 4
-    elif getattr(catalog, 'priority', None) == 'high':
+    elif getattr(catalog, "priority", None) == "high":
         deadline_hours = 8
-    elif getattr(catalog, 'priority', None) == 'low':
+    elif getattr(catalog, "priority", None) == "low":
         deadline_hours = 72
     return datetime.utcnow() + timedelta(hours=deadline_hours)
 
 
 def notify(user_uid, message, ticket_uid=None):
     """Создаёт уведомление для одного пользователя."""
-    db.session.add(Notification(
-        user_uid=user_uid,
-        message=message,
-        ticket_uid=ticket_uid,
-    ))
+    db.session.add(
+        Notification(
+            user_uid=user_uid,
+            message=message,
+            ticket_uid=ticket_uid,
+        )
+    )
 
 
 def notify_ticket_update(ticket, message, exclude_uid=None):
     """Рассылает уведомление всем участникам заявки, кроме исключённого пользователя."""
-    recipient_user_ids = {ticket.requester_uid, ticket.recipient_uid, ticket.performer_uid}
     recipient_user_ids = {
-        recipient_uid for recipient_uid in recipient_user_ids
+        ticket.requester_uid,
+        ticket.recipient_uid,
+        ticket.performer_uid,
+    }
+    recipient_user_ids = {
+        recipient_uid
+        for recipient_uid in recipient_user_ids
         if recipient_uid and recipient_uid != exclude_uid
     }
     for recipient_uid in recipient_user_ids:
@@ -686,14 +880,16 @@ def notify_ticket_update(ticket, message, exclude_uid=None):
 
 def audit(user_uid, action, entity_type=None, entity_uid=None, details=None, ip=None):
     """Записывает действие пользователя в журнал аудита."""
-    db.session.add(AuditLog(
-        user_uid=user_uid,
-        action=action,
-        entity_type=entity_type,
-        entity_uid=entity_uid,
-        details=details,
-        ip_address=ip,
-    ))
+    db.session.add(
+        AuditLog(
+            user_uid=user_uid,
+            action=action,
+            entity_type=entity_type,
+            entity_uid=entity_uid,
+            details=details,
+            ip_address=ip,
+        )
+    )
 
 
 def create_approval_chain(ticket, catalog, requester):
@@ -702,56 +898,72 @@ def create_approval_chain(ticket, catalog, requester):
     if not approver_uid:
         # Если у пользователя не указан руководитель, выбираем первого доступного
         # manager/admin как резервный вариант для демонстрации процесса.
-        fallback_manager = db.session.execute(text(
-            "SELECT u.user_uid FROM sm.users u "
-            "JOIN sm.user_roles r ON r.user_uid = u.user_uid "
-            "WHERE r.role IN ('manager','admin') LIMIT 1"
-        )).first()
+        fallback_manager = db.session.execute(
+            text(
+                "SELECT u.user_uid FROM sm.users u "
+                "JOIN sm.user_roles r ON r.user_uid = u.user_uid "
+                "WHERE r.role IN ('manager','admin') LIMIT 1"
+            )
+        ).first()
         approver_uid = fallback_manager.user_uid if fallback_manager else None
     if approver_uid:
-        db.session.add(TicketApproval(
-            ticket_uid=ticket.ticket_uid,
-            step_order=1,
-            step_name='Manager Approval',
-            approver_uid=approver_uid,
-            status='pending',
-        ))
-        ticket.status = 'pending_approval'
-        notify(approver_uid,
-               f'Требуется согласование заявки {ticket.ticket_number}',
-               ticket.ticket_uid)
+        db.session.add(
+            TicketApproval(
+                ticket_uid=ticket.ticket_uid,
+                step_order=1,
+                step_name="Manager Approval",
+                approver_uid=approver_uid,
+                status="pending",
+            )
+        )
+        ticket.status = "pending_approval"
+        notify(
+            approver_uid,
+            f"Требуется согласование заявки {ticket.ticket_number}",
+            ticket.ticket_uid,
+        )
 
 
 def process_approval_decision(ticket, approval, decision, comment, actor_uid):
     """Обрабатывает решение по шагу согласования заявки."""
-    valid_decisions = {'approved', 'rejected'}
+    valid_decisions = {"approved", "rejected"}
     if decision not in valid_decisions:
-        raise ValueError('Недопустимое решение согласования')
+        raise ValueError("Недопустимое решение согласования")
     old_status = approval.status
     approval.status = decision
     approval.comment = comment or None
     approval.decided_at = datetime.utcnow()
-    add_ticket_history(ticket.ticket_uid, 'approval', old_status, decision, actor_uid)
+    add_ticket_history(ticket.ticket_uid, "approval", old_status, decision, actor_uid)
 
-    if decision == 'rejected':
+    if decision == "rejected":
         previous = ticket.status
-        ticket.status = 'rejected'
-        add_ticket_history(ticket.ticket_uid, 'status', previous, 'rejected', actor_uid)
-        notify_ticket_update(ticket, f'Заявка {ticket.ticket_number} отклонена', exclude_uid=actor_uid)
+        ticket.status = "rejected"
+        add_ticket_history(ticket.ticket_uid, "status", previous, "rejected", actor_uid)
+        notify_ticket_update(
+            ticket, f"Заявка {ticket.ticket_number} отклонена", exclude_uid=actor_uid
+        )
         return
 
-    pending_approvals = TicketApproval.query.filter_by(
-        ticket_uid=ticket.ticket_uid,
-        status='pending',
-    ).order_by(TicketApproval.step_order).all()
+    pending_approvals = (
+        TicketApproval.query.filter_by(
+            ticket_uid=ticket.ticket_uid,
+            status="pending",
+        )
+        .order_by(TicketApproval.step_order)
+        .all()
+    )
     if pending_approvals:
         next_approval = pending_approvals[0]
         if next_approval.approver_uid:
-            notify(next_approval.approver_uid,
-                   f'Требуется согласование заявки {ticket.ticket_number}',
-                   ticket_uid=ticket.ticket_uid)
+            notify(
+                next_approval.approver_uid,
+                f"Требуется согласование заявки {ticket.ticket_number}",
+                ticket_uid=ticket.ticket_uid,
+            )
     else:
         previous = ticket.status
-        ticket.status = 'new'
-        add_ticket_history(ticket.ticket_uid, 'status', previous, 'new', actor_uid)
-        notify_ticket_update(ticket, f'Заявка {ticket.ticket_number} согласована', exclude_uid=actor_uid)
+        ticket.status = "new"
+        add_ticket_history(ticket.ticket_uid, "status", previous, "new", actor_uid)
+        notify_ticket_update(
+            ticket, f"Заявка {ticket.ticket_number} согласована", exclude_uid=actor_uid
+        )

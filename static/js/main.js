@@ -1,9 +1,9 @@
 let assignTarget = null;
 
 const STATUSES = [
-  { value: 'new',         label: 'Новая' },
+  { value: 'new', label: 'Новая' },
   { value: 'in_progress', label: 'В работе' },
-  { value: 'resolved',    label: 'Решена' },
+  { value: 'resolved', label: 'Решена' },
 ];
 const PRIORITY_LABELS = {
   low: 'Низкий', medium: 'Средний', high: 'Высокий', critical: 'Критический',
@@ -11,7 +11,7 @@ const PRIORITY_LABELS = {
 
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-function esc(s) { return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function esc(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function prettyDate(v) { return v ? new Date(v).toLocaleString('ru-RU') : '—'; }
 
 async function loadTickets(filter = 'all', userId = '', workGroupId = '') {
@@ -34,7 +34,7 @@ async function loadTickets(filter = 'all', userId = '', workGroupId = '') {
       <td>${esc(t.summary)}</td>
       <td>
         <select onchange="changeStatus('${t.ticket_uid}', this.value)">
-          ${STATUSES.map(s => `<option value="${s.value}" ${s.value===t.status?'selected':''}>${s.label}</option>`).join('')}
+          ${STATUSES.map(s => `<option value="${s.value}" ${s.value === t.status ? 'selected' : ''}>${s.label}</option>`).join('')}
         </select>
       </td>
       <td>${esc(t.performer || '—')}</td>
@@ -46,9 +46,9 @@ async function loadTickets(filter = 'all', userId = '', workGroupId = '') {
 }
 
 async function applyFilter() {
-  const f  = document.getElementById('filter-select')?.value || 'all';
-  const u  = document.getElementById('user-select')?.value  || '';
-  const wg = document.getElementById('wg-select')?.value    || '';
+  const f = document.getElementById('filter-select')?.value || 'all';
+  const u = document.getElementById('user-select')?.value || '';
+  const wg = document.getElementById('wg-select')?.value || '';
   await loadTickets(f, u, wg);
 }
 
@@ -57,11 +57,11 @@ async function loadUsers() {
   if (!res.ok) return;
   const users = await res.json();
   const byPerformer = document.getElementById('user-select');
-  const assignUser  = document.getElementById('assign-user');
+  const assignUser = document.getElementById('assign-user');
   if (!byPerformer || !assignUser) return;
   const options = users.map(u => `<option value="${u.user_uid}">${esc(u.full_name)}</option>`).join('');
   byPerformer.innerHTML = '<option value="">— по исполнителю —</option>' + options;
-  assignUser.innerHTML  = '<option value="">Выбрать исполнителя</option>' + options;
+  assignUser.innerHTML = '<option value="">Выбрать исполнителя</option>' + options;
 }
 
 function openAssign(uid) {
@@ -103,7 +103,7 @@ async function pollNotifications() {
   if (!res.ok) return;
   const data = await res.json();
   const badge = document.getElementById('notif-badge');
-  const list  = document.getElementById('notif-list');
+  const list = document.getElementById('notif-list');
   if (!badge || !list) return;
   badge.textContent = data.count;
   badge.classList.toggle('hidden', !data.count);
@@ -165,21 +165,21 @@ function initKanban() {
       },
       body: JSON.stringify({ status: newStatus })
     })
-    .then(response => {
-      if (response.ok) {
-        // Перемещаем карточку
-        targetColumn.appendChild(draggedCard);
-        // Обновляем страницу для актуальных stats
-        location.reload();
-      } else {
+      .then(response => {
+        if (response.ok) {
+          // Перемещаем карточку
+          targetColumn.appendChild(draggedCard);
+          // Обновляем страницу для актуальных stats
+          location.reload();
+        } else {
+          alert('Ошибка при изменении статуса');
+          return response.json().then(data => alert(data.error || 'Ошибка'));
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
         alert('Ошибка при изменении статуса');
-        return response.json().then(data => alert(data.error || 'Ошибка'));
-      }
-    })
-    .catch(error => {
-      console.error('Error:', error);
-      alert('Ошибка при изменении статуса');
-    });
+      });
   }
 }
 
@@ -231,7 +231,7 @@ async function createWorkGroup() {
   const name = document.getElementById('wg_name').value.trim();
   const desc = document.getElementById('wg_desc').value.trim();
   if (!name) return showToast('Введите название группы');
-  const d = await postJSON('/admin/create-work-group', {group_name: name, group_description: desc});
+  const d = await postJSON('/admin/create-work-group', { group_name: name, group_description: desc });
   if (d.success) location.reload(); else showToast(d.error || 'Ошибка');
 }
 
@@ -245,7 +245,7 @@ async function createTicket() {
   const catalog_uid = document.getElementById('new_catalog_uid').value;
   const summary = document.getElementById('new_summary').value.trim();
   const description = document.getElementById('new_description').value.trim();
-  const d = await postJSON('/api/tickets', {catalog_uid, summary, description});
+  const d = await postJSON('/api/tickets', { catalog_uid, summary, description });
   if (d.success) {
     showToast(`Заявка создана: ${d.ticket_number}`);
     window.location.reload();

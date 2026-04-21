@@ -78,6 +78,7 @@ a {
 .grid-2 {
   grid-template-columns: repeat(2, minmax(260px, 1fr));
 }
+
 .grid-4 {
   grid-template-columns: repeat(4, minmax(260px, 1fr));
 }
@@ -93,7 +94,7 @@ input,
 select,
 textarea {
   width: 100%;
-  padding: 9px;  
+  padding: 9px;
   border: 1px solid #0f172a;
   border-radius: 8px;
   background: #fff;
@@ -189,7 +190,7 @@ button,
 }
 
 .ticket-card:hover {
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .ticket-card .ticket-number {
@@ -215,9 +216,20 @@ button,
   text-transform: uppercase;
 }
 
-.priority-high { background: #fee2e2; color: #dc2626; }
-.priority-medium { background: #fef3c7; color: #d97706; }
-.priority-low { background: #d1fae5; color: #059669; }
+.priority-high {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.priority-medium {
+  background: #fef3c7;
+  color: #d97706;
+}
+
+.priority-low {
+  background: #d1fae5;
+  color: #059669;
+}
 
 .flash-wrap {
   margin: 12px 0;
@@ -402,7 +414,7 @@ label {
 
 .view-tab.active {
   background: white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   color: #007bff;
 }
 
@@ -425,7 +437,7 @@ label {
   border: 1px solid #e9ecef;
   border-radius: 8px;
   padding: 16px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .appr-card-header {
@@ -533,7 +545,7 @@ label {
   background: white;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .data-table th {
