@@ -6,8 +6,6 @@
   <form method="post" class="grid grid-2">
     <label for="catalog_name">Название каталога:</label><input name="catalog_name" value="{{ cat.catalog_name }}"
       required>
-    <label for="catalog_icon">Иконка каталога:</label><input name="catalog_icon"
-      value="{{ cat.catalog_icon or 'briefcase' }}">
     <label for="catalog_description">Описание каталога:</label><textarea
       name="catalog_description">{{ cat.catalog_description or '' }}</textarea>
     <label for="work_group_uid">Рабочая группа:</label>
@@ -15,7 +13,7 @@
       <option value="">Рабочая группа</option>{% for wg in work_groups %}<option value="{{ wg.work_group_uid }}" {% if
         cat.work_group_uid==wg.work_group_uid %}selected{% endif %}>{{ wg.group_name }}</option>{% endfor %}
     </select>
-    <label for="parent_uid">Родительская категория (верхний уровень)</label>
+    <label for="parent_uid">Родительская категория</label>
     <select name="parent_uid">
       <option value="">Без родителя</option>{% for c in top_cats %}<option value="{{ c.catalog_uid }}" {% if
         cat.parent_uid==c.catalog_uid %}selected{% endif %}>{{ c.catalog_name }}</option>{% endfor %}

@@ -226,7 +226,6 @@ class ServiceCatalog(db.Model):
     create_by = db.Column(db.String(36), nullable=False)
     update_by = db.Column(db.String(36), nullable=True)
     catalog_description = db.Column(db.Text, nullable=True)
-    catalog_icon = db.Column(db.String(64), nullable=True, default='briefcase')
 
     children = db.relationship('ServiceCatalog',
                                backref=db.backref('parent', remote_side='ServiceCatalog.catalog_uid'),
@@ -269,8 +268,6 @@ class Ticket(db.Model):
     param_values = db.relationship('TicketParamValue', backref='ticket', lazy='dynamic',
                                    cascade='all, delete-orphan',
                                    foreign_keys='TicketParamValue.ticket_uid')
-    attachments = db.relationship('Attachment', backref='ticket', lazy='dynamic',
-                                  foreign_keys='Attachment.ticket_uid')
 
     creator = db.relationship('User', foreign_keys=[created_by])
 
@@ -326,26 +323,6 @@ class TicketParamValue(db.Model):
     create_date = db.Column(db.DateTime, default=datetime.utcnow)
 
     author_rel = db.relationship('User', foreign_keys=[author_uid])
-
-
-# ---------------------------------------------------------------------------
-# sm.attachments
-# ---------------------------------------------------------------------------
-class Attachment(db.Model):
-    """Файлы, прикреплённые к заявке."""
-    __tablename__ = 'attachments'
-    __table_args__ = {'schema': 'sm'}
-
-    attachment_uid = db.Column(db.String(36), primary_key=True, default=gen_uuid)
-    ticket_uid = db.Column(db.String(36), db.ForeignKey('sm.tickets.ticket_uid'), nullable=True)
-    attachment_name = db.Column(db.Text, nullable=True)
-    attachment_path = db.Column(db.Text, nullable=True)
-    mime_type = db.Column(db.Text, nullable=True)
-    file_size = db.Column(db.Text, nullable=True)
-    uploaded_by = db.Column(db.String(36), db.ForeignKey('sm.users.user_uid'), nullable=False)
-    upload_date = db.Column(db.DateTime, default=datetime.utcnow)
-
-    uploader = db.relationship('User', foreign_keys=[uploaded_by])
 
 
 class ApprovalRoute(db.Model):

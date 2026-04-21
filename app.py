@@ -20,8 +20,7 @@ from sqlalchemy import case
 
 from models import (db, User, Password, UserRole, WorkGroup, UserWorkGroup,
                     SlaPolicy, ServiceCatalog,
-                    TicketApproval, Ticket, TicketHistory, TicketParamValue,
-                    Attachment, Notification, gen_uuid,
+                    TicketApproval, Ticket, TicketHistory, TicketParamValue, Notification, gen_uuid,
                     create_user_db, reset_password_db, verify_password,
                     _set_password_hash, _ensure_role, _ensure_work_group,
                     generate_ticket_number, compute_deadline,
@@ -91,8 +90,8 @@ BOARD_COLUMNS = {
     'on_hold':     ('Приостановлено',  ['on_hold', 'pending_approval', 'rejected']),
     'done':        ('Завершено',       ['resolved', 'closed', 'cancelled']),
 }
-PRIORITIES = {'low': 'Низкий', 'medium': 'Средний',
-              'high': 'Высокий', 'critical': 'Критический'}
+PRIORITIES = {'low': 'Низкий', 'medium': '8 часов',
+              'high': 'Сутки', 'critical': '4 часа'}
 ROLE_LABELS = {
     'user': 'Пользователь',
     'specialist': 'Task Executor',
@@ -336,8 +335,8 @@ def init_db():
 
     if not SlaPolicy.query.first():
         for name, resp, res in [
-            ('Критический', 1, 4), ('Высокий', 4, 8),
-            ('Стандартный', 8, 24), ('Низкий', 24, 72),
+            ('4 часа', 1, 4), ('8 часов', 4, 8),
+            ('Сутки', 8, 24), ('3 дня', 24, 72),
         ]:
             db.session.add(SlaPolicy(policy_name=name,
                                      response_time_hours=resp,
@@ -420,8 +419,7 @@ def init_db():
                 work_group_uid=wg_map.get(wg_key),
                 ticket_type=ttype or 'service_request',
                 priority=prio or 'medium',
-                sla_uid=picked_sla_uid,
-                catalog_icon=icon, catalog_description=desc,
+                sla_uid=picked_sla_uid, catalog_description=desc,
                 approval_required=appr, create_by=SYS,
             )
             db.session.add(cat)
@@ -989,14 +987,6 @@ def get_ticket(ticket_uid):
         'decided_at': a.decided_at.strftime('%d.%m.%Y %H:%M') if a.decided_at else None,
     } for a in ticket.approvals.order_by(TicketApproval.step_order).all()]
 
-    attachments = [{
-        'uid': att.attachment_uid,
-        'name': att.attachment_name,
-        'size': att.file_size,
-        'url': f'/uploads/{att.attachment_path}',
-        'uploader': att.uploader.full_name() if att.uploader else '—',
-        'date': att.upload_date.strftime('%d.%m.%Y %H:%M'),
-    } for att in ticket.attachments.order_by(Attachment.upload_date).all()]
 
     my_approval = None
     if ticket.status == 'pending_approval':
@@ -1025,7 +1015,6 @@ def get_ticket(ticket_uid):
         'comments':         comments,
         'history':          history,
         'approvals':        approvals,
-        'attachments':      attachments,
         'can_edit':         _can_edit_ticket(ticket),
         'can_assign':       current_user.role in ('admin', 'manager'),
         'can_approve':      my_approval is not None,
@@ -1384,45 +1373,6 @@ def add_comment_form(ticket_uid):
 
 
 # ============================================================
-# TICKET — ATTACHMENTS
-# ============================================================
-
-@app.route('/api/tickets/<ticket_uid>/attach', methods=['POST'])
-@login_required
-def upload_attachment(ticket_uid):
-    ticket = Ticket.query.get_or_404(ticket_uid)
-    if not _can_view_ticket(ticket):
-        return jsonify({'error': 'Доступ запрещён'}), 403
-    if 'file' not in request.files:
-        return jsonify({'error': 'Файл не выбран'}), 400
-    f = request.files['file']
-    if not f.filename or not _allowed_file(f.filename):
-        return jsonify({'error': 'Недопустимый тип файла'}), 400
-    filename = secure_filename(f.filename)
-    saved_name = f"{gen_uuid()}_{filename}"
-    save_path = os.path.join(app.config['UPLOAD_FOLDER'], saved_name)
-    f.save(save_path)
-    size_kb = round(os.path.getsize(save_path) / 1024, 1)
-    att = Attachment(
-        ticket_uid=ticket_uid, attachment_name=filename,
-        attachment_path=saved_name, mime_type=f.content_type,
-        file_size=f'{size_kb} KB', uploaded_by=current_user.user_uid,
-    )
-    db.session.add(att)
-    db.session.commit()
-    return jsonify({'success': True, 'attachment': {
-        'uid': att.attachment_uid, 'name': filename,
-        'size': att.file_size, 'url': f'/uploads/{saved_name}',
-    }})
-
-
-@app.route('/uploads/<path:filename>')
-@login_required
-def serve_upload(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-
-# ============================================================
 # SPECIALISTS API
 # ============================================================
 
@@ -1751,7 +1701,6 @@ def create_category():
     if request.method == 'POST':
         name = request.form['catalog_name'].strip()
         desc = request.form.get('catalog_description', '').strip() or None
-        icon = request.form.get('catalog_icon', 'briefcase')
         wg_uid = request.form.get('work_group_uid') or None
         parent_uid = request.form.get('parent_uid') or None
         ttype = request.form.get('ticket_type', 'service_request')
@@ -1762,7 +1711,7 @@ def create_category():
         cat_type = 'service' if parent_uid else 'category'
         db.session.add(ServiceCatalog(
             catalog_name=name, catalog_path=f'/{name.replace(" ", "_")}',
-            catalog_type=cat_type, catalog_description=desc, catalog_icon=icon,
+            catalog_type=cat_type, catalog_description=desc,
             work_group_uid=wg_uid, parent_uid=parent_uid, ticket_type=ttype,
             priority=prio, sla_uid=sla_uid, approval_required=appr,
             create_by=current_user.user_uid,
@@ -1795,7 +1744,6 @@ def edit_category(cat_uid):
             'catalog_name', '').strip() or cat.catalog_name
         cat.catalog_description = request.form.get(
             'catalog_description', '').strip() or cat.catalog_description
-        cat.catalog_icon = request.form.get('catalog_icon', cat.catalog_icon)
         cat.work_group_uid = request.form.get(
             'work_group_uid') or cat.work_group_uid
         cat.parent_uid = request.form.get('parent_uid') or cat.parent_uid

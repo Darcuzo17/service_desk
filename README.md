@@ -144,7 +144,6 @@ python app.py
 | `sm.tickets` | Заявки |
 | `sm.ticket_history` | История изменений каждого поля заявки |
 | `sm.ticket_param_values` | Комментарии, согласования (гибкий key-value) |
-| `sm.attachments` | Вложения к заявкам |
 
 ---
 

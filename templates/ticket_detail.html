@@ -9,7 +9,7 @@
     <span class="badge">{{ ticket.priority|priority_label }}</span>
     <span class="muted">Создана: {{ ticket.created_at|datefmt }}</span>
   </p>
-  <p><strong>Заявитель:</strong> {{ ticket.requester.full_name() if ticket.requester else '—' }}</p>
+  <p><strong>Автор:</strong> {{ ticket.requester.full_name() if ticket.requester else '—' }}</p>
   <p><strong>Исполнитель:</strong> {{ ticket.performer.full_name() if ticket.performer else 'не назначен' }}</p>
 </div>
 

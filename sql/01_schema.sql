@@ -116,7 +116,6 @@ CREATE TABLE IF NOT EXISTS sm.service_catalog (
     approval_required   bool DEFAULT false NULL,
     is_active           bool DEFAULT true NULL,
     sla_uid             uuid NULL REFERENCES sm.sla_policies(sla_uid),
-    catalog_icon        varchar(64)  DEFAULT 'briefcase',
     catalog_description text NULL,
     create_date         timestamp DEFAULT CURRENT_TIMESTAMP NULL,
     update_date         timestamp DEFAULT CURRENT_TIMESTAMP NULL,
@@ -173,20 +172,6 @@ CREATE TABLE IF NOT EXISTS sm.ticket_param_values (
     param_type      varchar(50)  NULL,
     author_uid      uuid         NULL REFERENCES sm.users(user_uid),
     create_date     timestamptz  DEFAULT CURRENT_TIMESTAMP NULL
-);
-
--- -------------------------------------------------------------
--- sm.attachments
--- -------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS sm.attachments (
-    attachment_uid  uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    ticket_uid      uuid NULL REFERENCES sm.tickets(ticket_uid),
-    attachment_name text NULL,
-    attachment_path text NULL,
-    mime_type       text NULL,
-    file_size       text NULL,
-    uploaded_by     uuid NOT NULL REFERENCES sm.users(user_uid),
-    upload_date     timestamptz DEFAULT CURRENT_TIMESTAMP NULL
 );
 
 -- -------------------------------------------------------------
