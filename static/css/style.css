@@ -429,7 +429,6 @@ button:active,
 #notif-wrapper button {
   min-height: 40px;
   padding-inline: 14px;
-  color: rgba(226, 232, 240, 0.96);
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.12);
 }
@@ -458,6 +457,41 @@ button:active,
   box-shadow: var(--shadow-md);
 }
 
+.notif-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 4px 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(121, 146, 168, 0.12);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.notif-header .btn {
+  display: none;
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  box-shadow: 0 8px 18px rgba(43, 108, 176, 0.18);
+}
+
+.notif-header .btn:not(.hidden) {
+  display: inline-flex;
+}
+
+.notif-header .btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+.notif-header .btn:not(:disabled):hover {
+  box-shadow: 0 12px 22px rgba(43, 108, 176, 0.24);
+}
+
 #notif-dropdown ul {
   list-style: none;
   margin: 0;
@@ -465,12 +499,44 @@ button:active,
 }
 
 #notif-dropdown li {
-  padding: 10px 8px;
+  padding: 0;
   border-bottom: 1px solid rgba(121, 146, 168, 0.12);
 }
 
 #notif-dropdown li:last-child {
   border-bottom: 0;
+}
+
+.notif-item a {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 11px 8px;
+  border-radius: 12px;
+  color: inherit;
+  transition: background 0.18s ease;
+}
+
+.notif-item a:hover {
+  background: rgba(43, 108, 176, 0.08);
+}
+
+.notif-item.is-unread a {
+  background: rgba(43, 108, 176, 0.07);
+}
+
+.notif-message {
+  color: var(--text);
+  line-height: 1.35;
+}
+
+.notif-date {
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.notif-empty {
+  padding: 12px 8px;
 }
 
 .login-wrap {

@@ -1079,19 +1079,23 @@ def user_public_profile(user_uid):
 @login_required
 def api_notifications():
     notes = (
-        Notification.query.filter_by(user_uid=current_user.user_uid, is_read=False)
+        Notification.query.filter_by(user_uid=current_user.user_uid)
         .order_by(Notification.create_date.desc())
         .limit(20)
         .all()
     )
+    unread_count = Notification.query.filter_by(
+        user_uid=current_user.user_uid, is_read=False
+    ).count()
     return jsonify(
         {
-            "count": len(notes),
+            "count": unread_count,
             "items": [
                 {
                     "uid": n.notification_uid,
                     "message": n.message,
                     "ticket_uid": n.ticket_uid,
+                    "is_read": n.is_read,
                     "ticket_number": (
                         n.ticket_rel.ticket_number if n.ticket_rel else None
                     ),
@@ -1500,7 +1504,7 @@ def update_ticket(ticket_uid):
             )
             if not member:
                 return (
-                    jsonify({"error": "Performer is not in the ticket's work group"}),
+                    jsonify({"error": "Исполнитель не состоит в рабочей группе заявки"}),
                     400,
                 )
         old_st = ticket.status
@@ -1639,7 +1643,7 @@ def api_assign_ticket(ticket_uid):
         .first()
     )
     if not member:
-        return jsonify({"error": "Performer is not in the ticket's work group"}), 400
+        return jsonify({"error": "Исполнитель не состоит в рабочей группе заявки"}), 400
     old_perf = ticket.performer_uid
     old_status = ticket.status
     ticket.performer_uid = performer_uid
@@ -1661,7 +1665,7 @@ def api_assign_ticket(ticket_uid):
         )
     notify(
         performer_uid,
-        f"You were assigned to ticket {ticket.ticket_number}",
+        f"Вы назначены исполнителем по заявке {ticket.ticket_number}",
         ticket.ticket_uid,
     )
     notify_ticket_update(
@@ -1696,7 +1700,7 @@ def api_ticket_status(ticket_uid):
         "cancelled",
     }
     if new_status not in allowed:
-        return jsonify({"error": "Invalid status"}), 400
+        return jsonify({"error": "Недопустимый статус"}), 400
     old_status = ticket.status
     ticket.status = new_status
     ticket.updated_at = datetime.utcnow()
@@ -1712,7 +1716,7 @@ def api_ticket_status(ticket_uid):
         ticket.ticket_uid, "status", old_status, new_status, current_user.user_uid
     )
     notify_ticket_update(
-        ticket, f"Status changed to {new_status}", current_user.user_uid
+        ticket, f"Статус заявки изменён на {new_status}", current_user.user_uid
     )
     db.session.commit()
     return jsonify({"ok": True})

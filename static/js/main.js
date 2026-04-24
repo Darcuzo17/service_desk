@@ -5,14 +5,35 @@ const STATUSES = [
   { value: 'in_progress', label: 'В работе' },
   { value: 'resolved', label: 'Решена' },
 ];
+
 const PRIORITY_LABELS = {
-  low: 'Низкий', medium: 'Средний', high: 'Высокий', critical: 'Критический',
+  low: 'Низкий',
+  medium: 'Средний',
+  high: 'Высокий',
+  critical: 'Критический',
 };
 
-function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
-function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
-function esc(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
-function prettyDate(v) { return v ? new Date(v).toLocaleString('ru-RU') : '—'; }
+function openModal(id) {
+  document.getElementById(id)?.classList.remove('hidden');
+}
+
+function closeModal(id) {
+  document.getElementById(id)?.classList.add('hidden');
+}
+
+function esc(value) {
+  return (value || '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char]));
+}
+
+function prettyDate(value) {
+  return value ? new Date(value).toLocaleString('ru-RU') : '—';
+}
 
 function updateTicketPriorityPreview() {
   const catalogSelect = document.getElementById('ticket-catalog');
@@ -29,46 +50,55 @@ async function loadTickets(filter = 'all', userId = '', workGroupId = '') {
   if (workGroupId) params.set('work_group_uid', workGroupId);
   const res = await fetch(`/api/tickets?${params.toString()}`);
   if (!res.ok) return;
+
   const tickets = await res.json();
   const tbody = document.querySelector('#queue tbody');
+  if (!tbody) return;
+
   tbody.innerHTML = '';
   if (!tickets.length) {
     tbody.innerHTML = '<tr><td colspan="7">Задачи не найдены</td></tr>';
     return;
   }
-  tbody.innerHTML = tickets.map(t => {
-    const overdueClass = t.is_overdue ? ' class="overdue"' : '';
+
+  tbody.innerHTML = tickets.map(ticket => {
+    const overdueClass = ticket.is_overdue ? ' class="overdue"' : '';
     return `<tr${overdueClass}>
-      <td><a href="/ticket/${t.ticket_uid}">${esc(t.ticket_number)}</a></td>
-      <td>${esc(t.summary)}</td>
+      <td><a href="/ticket/${ticket.ticket_uid}">${esc(ticket.ticket_number)}</a></td>
+      <td>${esc(ticket.summary)}</td>
       <td>
-        <select onchange="changeStatus('${t.ticket_uid}', this.value)">
-          ${STATUSES.map(s => `<option value="${s.value}" ${s.value === t.status ? 'selected' : ''}>${s.label}</option>`).join('')}
+        <select onchange="changeStatus('${ticket.ticket_uid}', this.value)">
+          ${STATUSES.map(status => `<option value="${status.value}" ${status.value === ticket.status ? 'selected' : ''}>${status.label}</option>`).join('')}
         </select>
       </td>
-      <td>${esc(t.performer || '—')}</td>
-      <td>${prettyDate(t.deadline_at)}</td>
-      <td>${esc(PRIORITY_LABELS[t.priority] || t.priority || 'Средний')}</td>
-      <td><button onclick="openAssign('${t.ticket_uid}')">Назначить</button></td>
+      <td>${esc(ticket.performer || '—')}</td>
+      <td>${prettyDate(ticket.deadline_at)}</td>
+      <td>${esc(PRIORITY_LABELS[ticket.priority] || ticket.priority || 'Средний')}</td>
+      <td><button type="button" onclick="openAssign('${ticket.ticket_uid}')">Назначить</button></td>
     </tr>`;
   }).join('');
 }
 
 async function applyFilter() {
-  const f = document.getElementById('filter-select')?.value || 'all';
-  const u = document.getElementById('user-select')?.value || '';
-  const wg = document.getElementById('wg-select')?.value || '';
-  await loadTickets(f, u, wg);
+  const filter = document.getElementById('filter-select')?.value || 'all';
+  const userId = document.getElementById('user-select')?.value || '';
+  const workGroupId = document.getElementById('wg-select')?.value || '';
+  await loadTickets(filter, userId, workGroupId);
 }
 
 async function loadUsers() {
   const res = await fetch('/api/specialists');
   if (!res.ok) return;
+
   const users = await res.json();
   const byPerformer = document.getElementById('user-select');
   const assignUser = document.getElementById('assign-user');
   if (!byPerformer || !assignUser) return;
-  const options = users.map(u => `<option value="${u.user_uid}">${esc(u.full_name)}</option>`).join('');
+
+  const options = users.map(user => (
+    `<option value="${user.user_uid}">${esc(user.full_name)}</option>`
+  )).join('');
+
   byPerformer.innerHTML = '<option value="">— по исполнителю —</option>' + options;
   assignUser.innerHTML = '<option value="">Выбрать исполнителя</option>' + options;
 }
@@ -80,17 +110,20 @@ function openAssign(uid) {
 
 async function submitAssign() {
   if (!assignTarget) return;
-  const performerUid = document.getElementById('assign-user').value;
+
+  const performerUid = document.getElementById('assign-user')?.value;
   const res = await fetch(`/tickets/${assignTarget}/assign`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ performer_uid: performerUid })
   });
+
   const payload = await res.json().catch(() => ({}));
   if (!res.ok) {
-    alert(payload.error || 'Assignment failed');
+    alert(payload.error || 'Не удалось назначить исполнителя');
     return;
   }
+
   closeModal('assign-modal');
   assignTarget = null;
   await applyFilter();
@@ -102,35 +135,84 @@ async function changeStatus(uid, status) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ status })
   });
+
   const payload = await res.json().catch(() => ({}));
-  if (!res.ok) alert(payload.error || 'Status update failed');
+  if (!res.ok) {
+    alert(payload.error || 'Не удалось обновить статус');
+  }
   await applyFilter();
+}
+
+function renderNotifications(data) {
+  const badge = document.getElementById('notif-badge');
+  const list = document.getElementById('notif-list');
+  const markAllButton = document.getElementById('notif-mark-all');
+  if (!badge || !list) return;
+
+  badge.textContent = data.count;
+  badge.classList.toggle('hidden', !data.count);
+  markAllButton?.classList.toggle('hidden', !data.count);
+
+  list.innerHTML = data.items.length
+    ? data.items.map(item => `
+      <li class="notif-item ${item.is_read ? 'is-read' : 'is-unread'}">
+        <a href="${item.ticket_uid ? `/ticket/${item.ticket_uid}` : '#'}" onclick="openNotification(event, '${item.uid}', '${item.ticket_uid || ''}')">
+          <span class="notif-message">${esc(item.message)}</span>
+          <span class="notif-date">${esc(item.created_at)}</span>
+        </a>
+      </li>
+    `).join('')
+    : '<li class="muted notif-empty">Нет уведомлений</li>';
 }
 
 async function pollNotifications() {
   const res = await fetch('/api/notifications');
   if (!res.ok) return;
   const data = await res.json();
-  const badge = document.getElementById('notif-badge');
-  const list = document.getElementById('notif-list');
-  if (!badge || !list) return;
-  badge.textContent = data.count;
-  badge.classList.toggle('hidden', !data.count);
-  list.innerHTML = data.items.length
-    ? data.items.map(i => `<li><a href="/ticket/${i.ticket_uid}">${esc(i.message)}</a></li>`).join('')
-    : '<li class="muted">Нет непрочитанных уведомлений</li>';
+  renderNotifications(data);
 }
 
-async function markNotificationsRead() {
-  await fetch('/api/notifications/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+async function markNotificationsRead(uid = null) {
+  const payload = uid ? { uid } : {};
+  await fetch('/api/notifications/read', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+    keepalive: true
+  });
+}
+
+async function markAllNotificationsRead() {
+  await markNotificationsRead();
   await pollNotifications();
 }
 
-function toggleNotifDropdown() {
-  const dd = document.getElementById('notif-dropdown');
-  if (!dd) return;
-  dd.classList.toggle('hidden');
-  if (!dd.classList.contains('hidden')) markNotificationsRead();
+async function openNotification(event, uid, ticketUid) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (uid) {
+    await markNotificationsRead(uid);
+  }
+  await pollNotifications();
+
+  if (ticketUid) {
+    window.location.href = `/ticket/${ticketUid}`;
+  }
+}
+
+async function toggleNotifDropdown(event) {
+  event?.stopPropagation();
+
+  const dropdown = document.getElementById('notif-dropdown');
+  if (!dropdown) return;
+
+  const isOpening = dropdown.classList.contains('hidden');
+  dropdown.classList.toggle('hidden');
+
+  if (isOpening) {
+    await pollNotifications();
+  }
 }
 
 function initKanban() {
@@ -148,28 +230,28 @@ function initKanban() {
 
   let draggedCard = null;
 
-  function handleDragStart(e) {
-    draggedCard = e.target.closest('.ticket-card');
-    e.dataTransfer.effectAllowed = 'move';
+  function handleDragStart(event) {
+    draggedCard = event.target.closest('.ticket-card');
+    event.dataTransfer.effectAllowed = 'move';
   }
 
-  function handleDragOver(e) {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
+  function handleDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
   }
 
-  function handleDrop(e) {
-    e.preventDefault();
-    const targetColumn = e.target.closest('.kanban-column');
+  function handleDrop(event) {
+    event.preventDefault();
+    const targetColumn = event.target.closest('.kanban-column');
     if (!targetColumn || !draggedCard) return;
+
     const targetTickets = targetColumn.querySelector('.kanban-tickets');
     if (!targetTickets) return;
 
     const newStatus = targetColumn.dataset.status;
     const ticketUid = draggedCard.dataset.ticketUid;
 
-    // Отправляем запрос на изменение статуса
-    fetch('/tickets/' + ticketUid + '/status', {
+    fetch(`/tickets/${ticketUid}/status`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -178,9 +260,7 @@ function initKanban() {
     })
       .then(response => {
         if (response.ok) {
-          // Перемещаем карточку
           targetTickets.appendChild(draggedCard);
-          // Обновляем страницу для актуальных stats
           location.reload();
         } else {
           alert('Ошибка при изменении статуса');
@@ -188,7 +268,7 @@ function initKanban() {
         }
       })
       .catch(error => {
-        console.error('Error:', error);
+        console.error('Ошибка:', error);
         alert('Ошибка при изменении статуса');
       });
   }
@@ -198,13 +278,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadUsers();
   await applyFilter();
   updateTicketPriorityPreview();
+
   document.getElementById('filter-select')?.addEventListener('change', applyFilter);
   document.getElementById('user-select')?.addEventListener('change', applyFilter);
   document.getElementById('wg-select')?.addEventListener('change', applyFilter);
   document.getElementById('ticket-catalog')?.addEventListener('change', updateTicketPriorityPreview);
+
+  document.addEventListener('click', event => {
+    const wrapper = document.getElementById('notif-wrapper');
+    const dropdown = document.getElementById('notif-dropdown');
+    if (!wrapper || !dropdown || dropdown.classList.contains('hidden')) return;
+    if (!wrapper.contains(event.target)) {
+      dropdown.classList.add('hidden');
+    }
+  });
+
   setInterval(pollNotifications, 15000);
-  pollNotifications();
-  // Инициализация канбана, если есть элементы
+  await pollNotifications();
+
   if (document.querySelector('.kanban-board')) {
     initKanban();
   }
@@ -215,54 +306,84 @@ function showToast(message) {
 }
 
 async function postJSON(url, body) {
-  const r = await fetch(url, {
+  const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {})
   });
-  return r.json();
+  return response.json();
 }
 
 async function deactivateUser(uid) {
   if (!confirm('Деактивировать пользователя?')) return;
-  const d = await postJSON(`/admin/delete-user/${uid}`);
-  if (d.success) location.reload(); else showToast(d.error || 'Ошибка');
+  const data = await postJSON(`/admin/delete-user/${uid}`);
+  if (data.success) {
+    location.reload();
+  } else {
+    showToast(data.error || 'Ошибка');
+  }
 }
 
 async function resetPassword(uid) {
-  const d = await postJSON(`/admin/reset-password/${uid}`);
-  if (d.success) showToast(`Новый пароль: ${d.new_password}`); else showToast(d.error || 'Ошибка');
+  const data = await postJSON(`/admin/reset-password/${uid}`);
+  if (data.success) {
+    showToast(`Новый пароль: ${data.new_password}`);
+  } else {
+    showToast(data.error || 'Ошибка');
+  }
 }
 
 async function deleteCategory(uid) {
   if (!confirm('Деактивировать категорию/услугу?')) return;
-  const d = await postJSON(`/admin/delete-category/${uid}`);
-  if (d.success) location.reload(); else showToast(d.error || 'Ошибка');
+  const data = await postJSON(`/admin/delete-category/${uid}`);
+  if (data.success) {
+    location.reload();
+  } else {
+    showToast(data.error || 'Ошибка');
+  }
 }
 
 async function createWorkGroup() {
-  const name = document.getElementById('wg_name').value.trim();
-  const desc = document.getElementById('wg_desc').value.trim();
+  const name = document.getElementById('wg_name')?.value.trim();
+  const desc = document.getElementById('wg_desc')?.value.trim();
   if (!name) return showToast('Введите название группы');
-  const d = await postJSON('/admin/create-work-group', { group_name: name, group_description: desc });
-  if (d.success) location.reload(); else showToast(d.error || 'Ошибка');
+
+  const data = await postJSON('/admin/create-work-group', {
+    group_name: name,
+    group_description: desc
+  });
+
+  if (data.success) {
+    location.reload();
+  } else {
+    showToast(data.error || 'Ошибка');
+  }
 }
 
 async function deleteWorkGroup(uid) {
   if (!confirm('Удалить рабочую группу?')) return;
-  const d = await postJSON(`/admin/delete-work-group/${uid}`);
-  if (d.success) location.reload(); else showToast(d.error || 'Ошибка');
+  const data = await postJSON(`/admin/delete-work-group/${uid}`);
+  if (data.success) {
+    location.reload();
+  } else {
+    showToast(data.error || 'Ошибка');
+  }
 }
 
 async function createTicket() {
-  const catalog_uid = document.getElementById('new_catalog_uid').value;
-  const summary = document.getElementById('new_summary').value.trim();
-  const description = document.getElementById('new_description').value.trim();
-  const d = await postJSON('/api/tickets', { catalog_uid, summary, description });
-  if (d.success) {
-    showToast(`Заявка создана: ${d.ticket_number}`);
+  const catalogUid = document.getElementById('new_catalog_uid')?.value;
+  const summary = document.getElementById('new_summary')?.value.trim();
+  const description = document.getElementById('new_description')?.value.trim();
+  const data = await postJSON('/api/tickets', {
+    catalog_uid: catalogUid,
+    summary,
+    description
+  });
+
+  if (data.success) {
+    showToast(`Заявка создана: ${data.ticket_number}`);
     window.location.reload();
   } else {
-    showToast(d.error || 'Ошибка');
+    showToast(data.error || 'Ошибка');
   }
 }

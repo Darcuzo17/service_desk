@@ -30,10 +30,14 @@
       </div>
       <div class="nav-right">
         <div id="notif-wrapper">
-          <button type="button" onclick="toggleNotifDropdown()">
+          <button id="notif-toggle" type="button" onclick="toggleNotifDropdown(event)">
             🔔 <span id="notif-badge" class="badge hidden">0</span>
           </button>
           <div id="notif-dropdown" class="hidden">
+            <div class="notif-header">
+              <span>Уведомления</span>
+              <button id="notif-mark-all" type="button" class="btn btn-primary" onclick="markAllNotificationsRead()">Прочитать всё</button>
+            </div>
             <ul id="notif-list"></ul>
           </div>
         </div>
