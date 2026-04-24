@@ -1670,8 +1670,7 @@ def update_ticket(ticket_uid):
     db.session.commit()
     return jsonify({"success": True})
 
-
-@app.post("/tickets/<ticket_uid>/assign")
+@app.route("/tickets/<ticket_uid>/assign", methods=["POST"])
 @login_required
 def api_assign_ticket(ticket_uid):
     """Короткий API назначения исполнителя прямо с доски заявок."""
@@ -1730,7 +1729,7 @@ def api_assign_ticket(ticket_uid):
     return jsonify({"ok": True})
 
 
-@app.post("/tickets/<ticket_uid>/status")
+@app.route("/tickets/<ticket_uid>/status", methods=["POST"])
 @login_required
 def api_ticket_status(ticket_uid):
     """Упрощённая смена статуса из таблицы заявок."""
@@ -1773,7 +1772,7 @@ def api_ticket_status(ticket_uid):
     return jsonify({"ok": True})
 
 
-@app.post("/tickets/<ticket_uid>/approve")
+@app.route("/tickets/<ticket_uid>/approve", methods=["POST"])
 @login_required
 def api_ticket_approve(ticket_uid):
     ticket = Ticket.query.get_or_404(ticket_uid)
