@@ -38,10 +38,50 @@ function prettyDate(value) {
 function updateTicketPriorityPreview() {
   const catalogSelect = document.getElementById('ticket-catalog');
   const preview = document.getElementById('ticket-priority-preview');
+  const selectedServiceBox = document.getElementById('ticket-selected-service-box');
+  const selectedServiceName = document.getElementById('ticket-selected-service-name');
+  const catalogField = document.getElementById('ticket-catalog-field');
   if (!catalogSelect || !preview) return;
+
   const selectedOption = catalogSelect.options[catalogSelect.selectedIndex];
   const priorityCode = selectedOption?.dataset?.priority || 'medium';
   preview.textContent = PRIORITY_LABELS[priorityCode] || priorityCode;
+
+  if (selectedOption && selectedServiceBox && selectedServiceName) {
+    selectedServiceName.textContent = selectedOption.dataset.path || selectedOption.textContent;
+    const isCatalogLocked = catalogField?.classList.contains('hidden');
+    selectedServiceBox.classList.toggle('hidden', !isCatalogLocked);
+  }
+}
+
+function openCreateTicketModal(catalogUid = null) {
+  const catalogSelect = document.getElementById('ticket-catalog');
+  const catalogField = document.getElementById('ticket-catalog-field');
+  const selectedServiceBox = document.getElementById('ticket-selected-service-box');
+  const ticketFormGrid = document.getElementById('ticket-form-grid');
+
+  if (catalogField) {
+    catalogField.classList.toggle('hidden', !!catalogUid);
+  }
+
+  if (ticketFormGrid) {
+    ticketFormGrid.classList.toggle('ticket-form-grid-locked', !!catalogUid);
+  }
+
+  if (selectedServiceBox && !catalogUid) {
+    selectedServiceBox.classList.add('hidden');
+  }
+
+  if (catalogSelect && catalogUid) {
+    catalogSelect.value = catalogUid;
+  }
+
+  updateTicketPriorityPreview();
+  openModal('create-modal');
+
+  window.setTimeout(() => {
+    document.querySelector('#create-modal input[name="summary"]')?.focus();
+  }, 0);
 }
 
 async function loadTickets(filter = 'all', userId = '', workGroupId = '') {

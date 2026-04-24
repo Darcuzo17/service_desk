@@ -788,21 +788,71 @@ def logout():
 # ============================================================
 
 
+def _build_catalog_tree():
+    catalog_items = (
+        ServiceCatalog.query.filter_by(is_active=True)
+        .order_by(ServiceCatalog.catalog_name)
+        .all()
+    )
+
+    by_parent = {}
+    for item in catalog_items:
+        by_parent.setdefault(item.parent_uid, []).append(item)
+
+    for siblings in by_parent.values():
+        siblings.sort(
+            key=lambda item: (
+                0 if item.catalog_type == "category" else 1,
+                (item.catalog_name or "").lower(),
+            )
+        )
+
+    services = []
+
+    def build_node(item, trail=None):
+        trail = trail or []
+        current_trail = [*trail, item.catalog_name]
+        children = [
+            build_node(child, current_trail)
+            for child in by_parent.get(item.catalog_uid, [])
+        ]
+
+        service_count = sum(child["service_count"] for child in children)
+        node = {
+            "catalog_uid": item.catalog_uid,
+            "catalog_name": item.catalog_name,
+            "catalog_description": item.catalog_description,
+            "catalog_type": item.catalog_type,
+            "priority": item.priority or "medium",
+            "full_path": " / ".join(current_trail),
+            "children": children,
+            "service_count": service_count,
+        }
+
+        if item.catalog_type == "service":
+            node["service_count"] = 1
+            services.append(
+                {
+                    "catalog_uid": item.catalog_uid,
+                    "catalog_name": item.catalog_name,
+                    "priority": item.priority or "medium",
+                    "full_path": node["full_path"],
+                }
+            )
+
+        return node
+
+    tree = [build_node(item) for item in by_parent.get(None, [])]
+    return tree, services
+
+
 @app.route("/")
 @login_required
 def home():
     q = request.args.get("q", "").strip()
     view = request.args.get("view", "catalog")
 
-    categories = (
-        ServiceCatalog.query.filter_by(
-            catalog_type="category", parent_uid=None, is_active=True
-        )
-        .order_by(ServiceCatalog.catalog_name)
-        .all()
-    )
-    for cat in categories:
-        cat._children = cat.children.filter_by(is_active=True).all()
+    catalog_tree, catalog_services = _build_catalog_tree()
 
     my_tickets = None
     search_results = None
@@ -844,7 +894,8 @@ def home():
 
     return render_template(
         "home.html",
-        categories=categories,
+        catalog_tree=catalog_tree,
+        catalog_services=catalog_services,
         my_tickets=my_tickets,
         search_results=search_results,
         view=view,

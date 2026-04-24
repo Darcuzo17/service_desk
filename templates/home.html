@@ -1,66 +1,128 @@
 {% extends "base.html" %}
+{% macro render_catalog_nodes(nodes, level=0) %}
+  {% for node in nodes %}
+    {% if node.catalog_type == "category" %}
+    <details class="catalog-tree-node level-{{ level }}" {% if level == 0 and loop.first %}open{% endif %}>
+      <summary class="catalog-tree-summary">
+        <div>
+          <div class="catalog-tree-title">{{ node.catalog_name }}</div>
+          {% if node.catalog_description %}
+          <div class="catalog-tree-description">{{ node.catalog_description }}</div>
+          {% endif %}
+        </div>
+        <span class="catalog-tree-count">{{ node.service_count }} услуг</span>
+      </summary>
+
+      <div class="catalog-tree-children">
+        {% if node.children %}
+          {{ render_catalog_nodes(node.children, level + 1) }}
+        {% else %}
+        <div class="catalog-tree-empty">В этой категории пока нет доступных услуг</div>
+        {% endif %}
+      </div>
+    </details>
+    {% else %}
+    <button
+      type="button"
+      class="catalog-service-btn priority-{{ node.priority }}"
+      data-catalog-uid="{{ node.catalog_uid }}"
+      onclick="openCreateTicketModal('{{ node.catalog_uid }}')"
+    >
+      <span class="catalog-service-name">{{ node.catalog_name }}</span>
+      <span class="catalog-service-path">{{ node.full_path }}</span>
+    </button>
+    {% endif %}
+  {% endfor %}
+{% endmacro %}
+
 {% block title %}Главная{% endblock %}
 {% block content %}
-<div class="card">
-  <div class="inline" style="justify-content:space-between;">
-    <h2>Создание заявки</h2>
-    <button class="btn btn-primary" type="button" onclick="openModal('create-modal')">Новая заявка</button>
-  </div>
-</div>
-
-<div id="create-modal" class="modal hidden" style="padding:16px;">
-  <div class="card" style="width:100%;max-width:700px;">
-    <div class="inline" style="justify-content:space-between;"><h3>Новая заявка</h3><button class="btn" type="button" onclick="closeModal('create-modal')">Закрыть</button></div>
-    <form method="POST" action="/tickets/new">
-      <div class="grid grid-2">
-        <div>
-          <label>Услуга</label>
-          <select id="ticket-catalog" name="catalog_uid" required>
-            {% for cat in categories %}
-              {% for svc in cat._children %}
-              <option value="{{ svc.catalog_uid }}" data-priority="{{ svc.priority or 'medium' }}">{{ cat.catalog_name }} / {{ svc.catalog_name }}</option>
-              {% endfor %}
-            {% endfor %}
-          </select>
-          <small class="muted">Приоритет из каталога: <span id="ticket-priority-preview">—</span></small>
-        </div>
-        <div><label>Тема</label><input name="summary" type="text" placeholder="Кратко опишите проблему" required></div>
+<div class="page-home">
+  <div class="home-hero">
+    <div class="card home-hero-card">
+      <div class="home-hero-copy">
+        <h2>Создание заявки</h2>
       </div>
-      <div style="margin-top:10px;"><label>Описание</label><textarea name="description" rows="4" required></textarea></div>
-      <div class="actions" style="margin-top:10px;"><button class="btn btn-primary" type="submit">Отправить</button></div>
-    </form>
+      <button class="btn btn-primary" type="button" onclick="openCreateTicketModal()">Новая заявка</button>
+    </div>
   </div>
-</div>
 
-<div class="card">
-  <h3>Каталог услуг</h3>
-  {% for cat in categories %}
-    <p><strong>{{ cat.catalog_name }}</strong>:
-    {% for svc in cat._children %}
-      <span class="badge">{{ svc.catalog_name }}</span>
+  <div id="create-modal" class="modal hidden" style="padding:16px;">
+    <div class="card home-create-modal" style="width:100%;max-width:700px;">
+      <div class="inline" style="justify-content:space-between;">
+        <h3>Новая заявка</h3>
+        <button class="btn" type="button" onclick="closeModal('create-modal')">Закрыть</button>
+      </div>
+      <form method="POST" action="/tickets/new">
+        <div id="ticket-selected-service-box" class="selected-service-box hidden">
+          <span class="selected-service-label">Выбранная услуга</span>
+          <strong id="ticket-selected-service-name">—</strong>
+        </div>
+
+        <div id="ticket-form-grid" class="grid grid-2">
+          <div id="ticket-catalog-field">
+            <label>Услуга</label>
+            <select id="ticket-catalog" name="catalog_uid" required>
+              {% for service in catalog_services %}
+              <option
+                value="{{ service.catalog_uid }}"
+                data-priority="{{ service.priority or 'medium' }}"
+                data-path="{{ service.full_path }}"
+              >{{ service.full_path }}</option>
+              {% endfor %}
+            </select>
+            <small class="muted">Приоритет из каталога: <span id="ticket-priority-preview">—</span></small>
+          </div>
+          <div id="ticket-summary-field">
+            <label>Тема</label>
+            <input name="summary" type="text" placeholder="Кратко опишите проблему" required>
+          </div>
+        </div>
+        <div style="margin-top:10px;">
+          <label>Описание</label>
+          <textarea name="description" rows="4" required></textarea>
+        </div>
+        <div class="actions" style="margin-top:10px;">
+          <button class="btn btn-primary" type="submit">Отправить</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="card catalog-card">
+    <div class="catalog-card-header">
+      <div>
+        <h3>Каталог услуг</h3>
+      </div>
+    </div>
+
+    {% if catalog_tree %}
+    <div class="catalog-tree">
+      {{ render_catalog_nodes(catalog_tree) }}
+    </div>
     {% else %}
-      <span class="muted">нет услуг</span>
-    {% endfor %}</p>
-  {% endfor %}
-</div>
+    <div class="empty-state">Каталог услуг пока пуст</div>
+    {% endif %}
+  </div>
 
-{% if my_tickets %}
-<div class="card">
-  <h3>Мои заявки</h3>
-  <table class="table">
-    <tr><th>Номер</th><th>Тема</th><th>Статус</th><th>Создана</th></tr>
-    {% for t in my_tickets %}<tr><td><a href="/ticket/{{ t.ticket_uid }}">{{ t.ticket_number }}</a></td><td>{{ t.summary }}</td><td>{{ t.status|status_label }}</td><td>{{ t.created_at|datefmt }}</td></tr>{% endfor %}
-  </table>
-</div>
-{% endif %}
+  {% if my_tickets %}
+  <div class="card">
+    <h3>Мои заявки</h3>
+    <table class="table">
+      <tr><th>Номер</th><th>Тема</th><th>Статус</th><th>Создана</th></tr>
+      {% for t in my_tickets %}<tr><td><a href="/ticket/{{ t.ticket_uid }}">{{ t.ticket_number }}</a></td><td>{{ t.summary }}</td><td>{{ t.status|status_label }}</td><td>{{ t.created_at|datefmt }}</td></tr>{% endfor %}
+    </table>
+  </div>
+  {% endif %}
 
-{% if search_results %}
-<div class="card">
-  <h3>Результаты поиска: {{ q }}</h3>
-  <table class="table">
-    <tr><th>Номер</th><th>Тема</th><th>Статус</th></tr>
-    {% for t in search_results %}<tr><td><a href="/ticket/{{ t.ticket_uid }}">{{ t.ticket_number }}</a></td><td>{{ t.summary }}</td><td>{{ t.status|status_label }}</td></tr>{% endfor %}
-  </table>
+  {% if search_results %}
+  <div class="card">
+    <h3>Результаты поиска: {{ q }}</h3>
+    <table class="table">
+      <tr><th>Номер</th><th>Тема</th><th>Статус</th></tr>
+      {% for t in search_results %}<tr><td><a href="/ticket/{{ t.ticket_uid }}">{{ t.ticket_number }}</a></td><td>{{ t.summary }}</td><td>{{ t.status|status_label }}</td></tr>{% endfor %}
+    </table>
+  </div>
+  {% endif %}
 </div>
-{% endif %}
 {% endblock %}
