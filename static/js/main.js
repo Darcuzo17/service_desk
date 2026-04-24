@@ -14,6 +14,15 @@ function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function esc(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 function prettyDate(v) { return v ? new Date(v).toLocaleString('ru-RU') : '—'; }
 
+function updateTicketPriorityPreview() {
+  const catalogSelect = document.getElementById('ticket-catalog');
+  const preview = document.getElementById('ticket-priority-preview');
+  if (!catalogSelect || !preview) return;
+  const selectedOption = catalogSelect.options[catalogSelect.selectedIndex];
+  const priorityCode = selectedOption?.dataset?.priority || 'medium';
+  preview.textContent = PRIORITY_LABELS[priorityCode] || priorityCode;
+}
+
 async function loadTickets(filter = 'all', userId = '', workGroupId = '') {
   const params = new URLSearchParams({ filter });
   if (userId) params.set('user_id', userId);
@@ -153,6 +162,8 @@ function initKanban() {
     e.preventDefault();
     const targetColumn = e.target.closest('.kanban-column');
     if (!targetColumn || !draggedCard) return;
+    const targetTickets = targetColumn.querySelector('.kanban-tickets');
+    if (!targetTickets) return;
 
     const newStatus = targetColumn.dataset.status;
     const ticketUid = draggedCard.dataset.ticketUid;
@@ -168,7 +179,7 @@ function initKanban() {
       .then(response => {
         if (response.ok) {
           // Перемещаем карточку
-          targetColumn.appendChild(draggedCard);
+          targetTickets.appendChild(draggedCard);
           // Обновляем страницу для актуальных stats
           location.reload();
         } else {
@@ -186,9 +197,11 @@ function initKanban() {
 document.addEventListener('DOMContentLoaded', async () => {
   await loadUsers();
   await applyFilter();
+  updateTicketPriorityPreview();
   document.getElementById('filter-select')?.addEventListener('change', applyFilter);
   document.getElementById('user-select')?.addEventListener('change', applyFilter);
   document.getElementById('wg-select')?.addEventListener('change', applyFilter);
+  document.getElementById('ticket-catalog')?.addEventListener('change', updateTicketPriorityPreview);
   setInterval(pollNotifications, 15000);
   pollNotifications();
   // Инициализация канбана, если есть элементы

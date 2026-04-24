@@ -155,15 +155,20 @@ button,
   gap: 16px;
   overflow-x: auto;
   padding: 16px 0;
+  align-items: flex-start;
 }
 
 .kanban-column {
   min-width: 330px;
+  width: 330px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 16px;
-  height: 700px;
+  height: min(700px, calc(100vh - 220px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .kanban-column h3 {
@@ -171,6 +176,17 @@ button,
   margin-bottom: 12px;
   font-size: 18px;
   color: var(--text);
+  flex-shrink: 0;
+}
+
+.kanban-tickets {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
 }
 
 .ticket-card {
@@ -178,7 +194,6 @@ button,
   border: 1px solid #0f172a;
   border-radius: 8px;
   padding: 12px;
-  margin-bottom: 8px;
   cursor: pointer;
   transition: box-shadow 0.2s;
 }
@@ -203,9 +218,22 @@ button,
   font-size: 14px;
 }
 
+.ticket-card .ticket-meta {
+  margin: 4px 0;
+  font-size: 12px;
+  color: var(--text);
+}
+
 .ticket-card .ticket-deadline {
   font-size: 12px;
   color: var(--muted);
+}
+
+.ticket-card .ticket-overdue {
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--danger);
 }
 
 .ticket-card .ticket-priority {
@@ -229,6 +257,14 @@ button,
 .priority-low {
   background: #d1fae5;
   color: #059669;
+}
+
+@media (max-width: 768px) {
+  .kanban-column {
+    min-width: min(320px, calc(100vw - 48px));
+    width: min(320px, calc(100vw - 48px));
+    height: min(65vh, 620px);
+  }
 }
 
 .flash-wrap {

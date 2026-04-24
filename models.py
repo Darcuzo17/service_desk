@@ -878,20 +878,6 @@ def notify_ticket_update(ticket, message, exclude_uid=None):
         notify(recipient_uid, message, ticket_uid=ticket.ticket_uid)
 
 
-def audit(user_uid, action, entity_type=None, entity_uid=None, details=None, ip=None):
-    """Записывает действие пользователя в журнал аудита."""
-    db.session.add(
-        AuditLog(
-            user_uid=user_uid,
-            action=action,
-            entity_type=entity_type,
-            entity_uid=entity_uid,
-            details=details,
-            ip_address=ip,
-        )
-    )
-
-
 def create_approval_chain(ticket, catalog, requester):
     """Создаёт простую цепочку согласования для заявки."""
     approver_uid = requester.manager_uid

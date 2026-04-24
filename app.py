@@ -12,7 +12,6 @@ import os
 import re
 from datetime import datetime
 from werkzeug.security import generate_password_hash
-from werkzeug.utils import secure_filename
 from flask import (
     Flask,
     render_template,
@@ -20,7 +19,6 @@ from flask import (
     redirect,
     jsonify,
     flash,
-    send_from_directory,
 )
 from flask_login import (
     LoginManager,
@@ -88,29 +86,6 @@ app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_pre_ping": True,
 }
 
-# Папка и ограничения для вложений пользователей.
-UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "uploads")
-ALLOWED_EXTENSIONS = {
-    "png",
-    "jpg",
-    "jpeg",
-    "gif",
-    "pdf",
-    "doc",
-    "docx",
-    "xls",
-    "xlsx",
-    "txt",
-    "zip",
-    "rar",
-    "7z",
-}
-MAX_FILE_MB = 20
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_MB * 1024 * 1024
-
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-
 db.init_app(app)
 
 login_manager = LoginManager(app)
@@ -131,23 +106,17 @@ def load_user(user_uid):
 SPECIALIST_ROLES = {"specialist", "manager", "admin"}
 TASK_QUEUE_FILTERS = {"all", "my", "overdue"}
 CLOSED_TICKET_STATUSES = {"resolved", "closed", "cancelled"}
-BOARD_COLUMNS = {
-    "new": ("Новые", ["new", "assigned", "approved"]),
-    "in_progress": ("В работе", ["in_progress"]),
-    "on_hold": ("Приостановлено", ["on_hold", "pending_approval", "rejected"]),
-    "done": ("Завершено", ["resolved", "closed", "cancelled"]),
-}
-PRIORITIES = {
-    "low": "3 дня",
-    "medium": "8 часов",
-    "high": "1 день",
-    "critical": "4 часа",
-}
 ROLE_LABELS = {
     "user": "Пользователь",
     "specialist": "Task Executor",
     "manager": "Manager (Supervisor)",
     "admin": "Администратор",
+}
+PRIORITY_LABELS = {
+    "low": "Низкий",
+    "medium": "Средний",
+    "high": "Высокий",
+    "critical": "Критический",
 }
 # ============================================================
 # HELPERS
@@ -204,11 +173,6 @@ def _can_edit_ticket(ticket):
     return ticket.requester_uid == current_user.user_uid and ticket.status == "new"
 
 
-def _allowed_file(filename):
-    """Проверка расширения загружаемого файла."""
-    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
-
-
 def _unread_count():
     """Количество непрочитанных уведомлений в шапке сайта."""
     if current_user.is_authenticated:
@@ -216,6 +180,13 @@ def _unread_count():
             user_uid=current_user.user_uid, is_read=False
         ).count()
     return 0
+
+
+def _admin_forbidden():
+    """Единый ответ для admin-only обработчиков с поддержкой JSON и HTML."""
+    if request.is_json:
+        return jsonify({"error": "Доступ запрещён"}), 403
+    return "Доступ запрещён", 403
 
 
 # ============================================================
@@ -249,7 +220,7 @@ def column_label_filter(column_key):
 
 @app.template_filter("priority_label")
 def priority_label_filter(priority_code):
-    return PRIORITIES.get(priority_code, priority_code)
+    return PRIORITY_LABELS.get(priority_code, priority_code)
 
 
 @app.template_filter("role_label")
@@ -264,13 +235,42 @@ def datefmt_filter(date_value, output_format="%d.%m.%Y %H:%M"):
     return date_value.strftime(output_format)
 
 
+@app.template_filter("overdue_for")
+def overdue_for_filter(deadline_at):
+    if not deadline_at:
+        return ""
+
+    current_time = (
+        datetime.now(deadline_at.tzinfo) if deadline_at.tzinfo else datetime.utcnow()
+    )
+    if deadline_at >= current_time:
+        return ""
+
+    delta = current_time - deadline_at
+    total_seconds = int(delta.total_seconds())
+    days = total_seconds // 86400
+    hours = (total_seconds % 86400) // 3600
+    minutes = (total_seconds % 3600) // 60
+
+    parts = []
+    if days:
+        parts.append(f"{days} д.")
+    if hours:
+        parts.append(f"{hours} ч.")
+    if not days and minutes:
+        parts.append(f"{minutes} мин.")
+    if not parts:
+        parts.append("меньше минуты")
+    return " ".join(parts[:2])
+
+
 @app.context_processor
 def inject_globals():
     return {
         "unread_count": _unread_count(),
         "is_specialist": is_specialist,
         "now": datetime.utcnow(),
-        "PRIORITIES": PRIORITIES,
+        "PRIORITIES": PRIORITY_LABELS,
         "User": User,
     }
 
@@ -2050,7 +2050,7 @@ def dashboard():
 @login_required
 def admin_users():
     if current_user.role != "admin":
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     users = User.query.order_by(User.last_name, User.first_name).all()
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
     return render_template("admin_users.html", users=users, work_groups=work_groups)
@@ -2061,7 +2061,7 @@ def admin_users():
 def create_user():
     """Создание пользователя администратором."""
     if current_user.role != "admin":
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
     all_users = (
         User.query.filter_by(is_deactivated=False).order_by(User.last_name).all()
@@ -2169,7 +2169,7 @@ def create_user():
 def edit_user(user_uid):
     """Редактирование карточки пользователя."""
     if current_user.role != "admin":
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     user = User.query.get_or_404(user_uid)
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
     all_users = (
@@ -2216,9 +2216,7 @@ def edit_user(user_uid):
 def delete_user(user_uid):
     """В учебной версии удаление реализовано как деактивация учётной записи."""
     if current_user.role != "admin":
-        if request.is_json:
-            return jsonify({"error": "Доступ запрещён"}), 403
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     user = User.query.get_or_404(user_uid)
     if user.user_uid == current_user.user_uid:
         if request.is_json:
@@ -2239,7 +2237,7 @@ def delete_user(user_uid):
 def admin_reset_password(user_uid):
     """Сбрасывает пароль и возвращает новый временный пароль пользователю."""
     if current_user.role != "admin":
-        return jsonify({"error": "Доступ запрещён"}), 403
+        return _admin_forbidden()
     user = User.query.get_or_404(user_uid)
     new_pass = reset_password_db(user.user_name)
     if not new_pass:
@@ -2257,7 +2255,7 @@ def admin_reset_password(user_uid):
 def admin_categories():
     """Страница управления категориями и услугами каталога."""
     if current_user.role != "admin":
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     cats = (
         ServiceCatalog.query.filter_by(parent_uid=None)
         .order_by(ServiceCatalog.catalog_name)
@@ -2277,7 +2275,7 @@ def admin_categories():
 def create_category():
     """Создание категории верхнего уровня или отдельной услуги."""
     if current_user.role != "admin":
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
     top_cats = ServiceCatalog.query.filter_by(
         catalog_type="category", parent_uid=None, is_active=True
@@ -2328,7 +2326,7 @@ def create_category():
 def edit_category(cat_uid):
     """Редактирование существующей записи каталога."""
     if current_user.role != "admin":
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     cat = ServiceCatalog.query.get_or_404(cat_uid)
     work_groups = WorkGroup.query.filter_by(isactive=True).all()
     top_cats = ServiceCatalog.query.filter(
@@ -2378,9 +2376,7 @@ def delete_category(cat_uid):
     чтобы не ломать историю работы системы.
     """
     if current_user.role != "admin":
-        if request.is_json:
-            return jsonify({"error": "Доступ запрещён"}), 403
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     cat = ServiceCatalog.query.get_or_404(cat_uid)
     ticket_count = Ticket.query.filter_by(catalog_uid=cat_uid).count()
     if ticket_count > 0:
@@ -2419,7 +2415,7 @@ def delete_category(cat_uid):
 @login_required
 def admin_work_groups():
     if current_user.role != "admin":
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     groups = WorkGroup.query.order_by(WorkGroup.group_name).all()
     return render_template("admin_work_groups.html", groups=groups)
 
@@ -2428,9 +2424,7 @@ def admin_work_groups():
 @login_required
 def create_work_group():
     if current_user.role != "admin":
-        if request.is_json:
-            return jsonify({"error": "Доступ запрещён"}), 403
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     data = request.get_json() if request.is_json else request.form
     name = (data.get("group_name") or "").strip()
     desc = (data.get("group_description") or "").strip() or None
@@ -2459,9 +2453,7 @@ def create_work_group():
 @login_required
 def delete_work_group(wg_uid):
     if current_user.role != "admin":
-        if request.is_json:
-            return jsonify({"error": "Доступ запрещён"}), 403
-        return "Доступ запрещён", 403
+        return _admin_forbidden()
     wg = WorkGroup.query.get_or_404(wg_uid)
     has_catalog = ServiceCatalog.query.filter_by(work_group_uid=wg_uid).first()
     if has_catalog:

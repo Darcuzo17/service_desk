@@ -15,13 +15,14 @@
       <div class="grid grid-2">
         <div>
           <label>Услуга</label>
-          <select name="catalog_uid" required>
+          <select id="ticket-catalog" name="catalog_uid" required>
             {% for cat in categories %}
               {% for svc in cat._children %}
-              <option value="{{ svc.catalog_uid }}">{{ cat.catalog_name }} / {{ svc.catalog_name }}</option>
+              <option value="{{ svc.catalog_uid }}" data-priority="{{ svc.priority or 'medium' }}">{{ cat.catalog_name }} / {{ svc.catalog_name }}</option>
               {% endfor %}
             {% endfor %}
           </select>
+          <small class="muted">Приоритет из каталога: <span id="ticket-priority-preview">—</span></small>
         </div>
         <div><label>Тема</label><input name="summary" type="text" placeholder="Кратко опишите проблему" required></div>
       </div>
