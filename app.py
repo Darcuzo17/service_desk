@@ -1381,8 +1381,31 @@ def ticket_detail(ticket_uid):
         .order_by(TicketParamValue.create_date)
         .all()
     )
+    pending_approvals = (
+        ticket.approvals.filter_by(status="pending")
+        .order_by(TicketApproval.step_order)
+        .all()
+    )
+    my_pending_approval = next(
+        (
+            approval
+            for approval in pending_approvals
+            if approval.approver_uid == current_user.user_uid
+        ),
+        None,
+    )
+    can_update_ticket = (
+        current_user.role in ("specialist", "manager", "admin")
+        and ticket.status != "pending_approval"
+    )
     return render_template(
-        "ticket_detail.html", ticket=ticket, specialists=specialists, comments=comments
+        "ticket_detail.html",
+        ticket=ticket,
+        specialists=specialists,
+        comments=comments,
+        pending_approvals=pending_approvals,
+        my_pending_approval=my_pending_approval,
+        can_update_ticket=can_update_ticket,
     )
 
 
@@ -1501,6 +1524,9 @@ def update_ticket_form(ticket_uid):
     if not _can_edit_ticket(ticket):
         flash("Доступ запрещён", "error")
         return redirect(f"/ticket/{ticket_uid}")
+    if ticket.status == "pending_approval":
+        flash("Пока заявка на согласовании, обычное обновление недоступно", "error")
+        return redirect(f"/ticket/{ticket_uid}")
     new_status = request.form.get("status")
     new_performer = request.form.get("performer_uid") or None
     now = datetime.utcnow()
@@ -1527,6 +1553,43 @@ def update_ticket_form(ticket_uid):
     return redirect(f"/ticket/{ticket_uid}")
 
 
+@app.route("/ticket/<ticket_uid>/approve", methods=["POST"])
+@login_required
+def approve_ticket_form(ticket_uid):
+    ticket = Ticket.query.get_or_404(ticket_uid)
+    approval_uid = request.form.get("approval_uid")
+    decision = request.form.get("decision")
+    comment = (request.form.get("comment") or "").strip()
+
+    approval = TicketApproval.query.filter_by(
+        ticket_uid=ticket_uid,
+        approval_uid=approval_uid,
+        approver_uid=current_user.user_uid,
+        status="pending",
+    ).first()
+    if not approval:
+        flash("Согласование для вас не найдено", "error")
+        return redirect(f"/ticket/{ticket_uid}")
+
+    try:
+        process_approval_decision(
+            ticket, approval, decision, comment, current_user.user_uid
+        )
+        db.session.commit()
+    except ValueError as exc:
+        db.session.rollback()
+        flash(str(exc), "error")
+        return redirect(f"/ticket/{ticket_uid}")
+
+    flash(
+        "Решение по согласованию сохранено"
+        if decision == "approved"
+        else "Заявка отклонена",
+        "success",
+    )
+    return redirect(f"/ticket/{ticket_uid}")
+
+
 @app.route("/api/tickets/<ticket_uid>/update", methods=["POST"])
 @login_required
 def update_ticket(ticket_uid):
@@ -1546,6 +1609,13 @@ def update_ticket(ticket_uid):
     # Все остальные изменения уже идут по обычной проверке доступа.
     if action != "approve" and not _can_edit_ticket(ticket):
         return jsonify({"error": "Доступ запрещён"}), 403
+    if action != "approve" and ticket.status == "pending_approval":
+        return (
+            jsonify(
+                {"error": "Пока заявка на согласовании, обычное обновление недоступно"}
+            ),
+            409,
+        )
     now = datetime.utcnow()
 
     if action == "take":

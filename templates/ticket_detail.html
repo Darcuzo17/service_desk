@@ -13,6 +13,43 @@
   <p><strong>Исполнитель:</strong> {{ ticket.performer.full_name() if ticket.performer else 'не назначен' }}</p>
 </div>
 
+{% if ticket.status == 'pending_approval' %}
+<div class="card">
+  <h3>Согласование</h3>
+
+  {% if pending_approvals %}
+    <p class="muted">Сейчас заявка ждёт решение по следующим шагам:</p>
+    {% for approval in pending_approvals %}
+    <p>
+      <strong>{{ approval.step_name|approval_step_label or ('Шаг ' ~ approval.step_order) }}</strong><br>
+      Согласующий: {{ approval.approver.full_name() if approval.approver else 'не указан' }}
+    </p>
+    {% endfor %}
+  {% else %}
+    <p class="muted">Активных шагов согласования сейчас нет.</p>
+  {% endif %}
+
+  {% if my_pending_approval %}
+  <form method="POST" action="/ticket/{{ ticket.ticket_uid }}/approve" style="margin-top:12px;">
+    <input type="hidden" name="approval_uid" value="{{ my_pending_approval.approval_uid }}">
+
+    <label>Комментарий к решению</label>
+    <textarea name="comment" rows="3" placeholder="Если нужно, можно оставить короткий комментарий" style="width:100%;"></textarea>
+
+    <div class="actions" style="margin-top:10px;">
+      <button class="btn btn-success" type="submit" name="decision" value="approved">Согласовать</button>
+      <button class="btn btn-danger" type="submit" name="decision" value="rejected">Отклонить</button>
+    </div>
+  </form>
+  {% else %}
+  <p class="muted" style="margin-top:12px;">
+    Обычное обновление заявки сейчас отключено, потому что она на согласовании.
+    Решение может принять только текущий согласующий.
+  </p>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="card">
   <h3>Комментарии</h3>
   {% for c in comments %}
@@ -31,7 +68,7 @@
   </form>
 </div>
 
-{% if current_user.role in ('specialist', 'manager', 'admin') %}
+{% if can_update_ticket %}
 <div class="card">
   <h3>Обновить заявку</h3>
   <form method="POST" action="/ticket/{{ ticket.ticket_uid }}/update">
