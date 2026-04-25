@@ -61,13 +61,14 @@ from models import (
 )
 
 # ============================================================
-# APP INIT
+# БАЗОВАЯ НАСТРОЙКА ПРИЛОЖЕНИЯ
 # ============================================================
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "sd-secret-key-change-in-prod")
 app.json.ensure_ascii = False
 
-# Параметры подключения храним в явном виде: так конфиг проще показать в отчёте.
+# Тут держим подключение к БД в явном виде.
+# Для учебного проекта так проще: сразу видно, куда приложение ходит.
 DB_CONFIG = {
     "user": "service_desk_user",
     "password": "service123",
@@ -101,7 +102,7 @@ def load_user(user_uid):
 
 
 # ============================================================
-# CONSTANTS
+# КОНСТАНТЫ И ПОДПИСИ
 # ============================================================
 SPECIALIST_ROLES = {"specialist", "manager", "admin"}
 TASK_QUEUE_FILTERS = {"all", "my", "overdue"}
@@ -122,7 +123,7 @@ APPROVAL_STEP_LABELS = {
     "Manager Approval": "Согласование руководителем",
 }
 # ============================================================
-# HELPERS
+# НЕБОЛЬШИЕ ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ============================================================
 
 
@@ -193,7 +194,7 @@ def _admin_forbidden():
 
 
 # ============================================================
-# JINJA2 FILTERS & GLOBALS
+# ФИЛЬТРЫ И ОБЩИЕ ШТУКИ ДЛЯ ШАБЛОНОВ
 # ============================================================
 @app.template_filter("status_label")
 def status_label_filter(status_code):
@@ -284,7 +285,7 @@ def inject_globals():
 
 
 # ============================================================
-# DB INIT CLI
+# ИНИЦИАЛИЗАЦИЯ БАЗЫ И УЧЕБНЫХ ДАННЫХ
 # ============================================================
 @app.cli.command("init-db")
 def init_db():
@@ -298,8 +299,8 @@ def init_db():
         db.create_all()
     except SQLAlchemyError:
         # В учебной среде схема могла создаваться по частям и в разных версиях.
-        # Если ORM не может корректно достроить таблицы, продолжаем работу
-        # и создаём недостающие объекты явным SQL ниже.
+        # Если приложение не смогло само достроить таблицы, не падаем сразу.
+        # Ниже просто руками создаём то, чего не хватает.
         db.session.rollback()
 
     db.session.execute(
@@ -394,7 +395,8 @@ def init_db():
     """
         )
     )
-    # Lightweight compatibility migration for older databases.
+    # Этот кусок нужен для старых учебных баз.
+    # Если структура чуть отстаёт от текущего кода, спокойно дотягиваем её здесь.
     db.session.execute(
         text(
             """
@@ -720,7 +722,7 @@ def init_db():
 
 
 # ============================================================
-# AUTH
+# ВХОД, ВЫХОД И ПРОВЕРКА ПАРОЛЯ
 # ============================================================
 
 
@@ -792,7 +794,7 @@ def logout():
 
 
 # ============================================================
-# HOME
+# ГЛАВНАЯ СТРАНИЦА
 # ============================================================
 
 
@@ -912,7 +914,7 @@ def home():
 
 
 # ============================================================
-# LIVE SEARCH API
+# ЖИВОЙ ПОИСК
 # ============================================================
 
 
@@ -923,7 +925,7 @@ def api_search():
     if len(q) < 2:
         return jsonify({"tickets": [], "catalog": []})
 
-    # Catalog: services + categories matching query
+    # Ищем и услуги, и разделы каталога, чтобы поиск не казался "слепым".
     cat_q = ServiceCatalog.query.filter(
         ServiceCatalog.is_active == True,
         db.or_(
@@ -931,7 +933,8 @@ def api_search():
             ServiceCatalog.catalog_description.ilike(f"%{q}%"),
         ),
     ).all()
-    # Sort: starts-with first, then contains; services before categories
+    # Сначала выводим то, что начинается с запроса.
+    # Так результат обычно выглядит логичнее для пользователя.
 
     def _cat_rank(c):
         starts = c.catalog_name.lower().startswith(q.lower())
@@ -940,7 +943,7 @@ def api_search():
 
     cat_q = sorted(cat_q, key=_cat_rank)[:8]
 
-    # Tickets matching query (restricted by role)
+    # По заявкам тоже фильтруем, но не забываем про права доступа.
     tq = Ticket.query.join(
         ServiceCatalog, Ticket.catalog_uid == ServiceCatalog.catalog_uid, isouter=True
     )
@@ -990,14 +993,14 @@ def api_search():
 
 
 # ============================================================
-# APPROVALS PAGE
+# СТРАНИЦА СОГЛАСОВАНИЙ
 # ============================================================
 
 
 @app.route("/approvals")
 @login_required
 def approvals():
-    # Items this user must approve (pending, assigned to them)
+    # Здесь лежат шаги, где текущий пользователь должен принять решение.
     to_approve = (
         TicketApproval.query.filter_by(
             approver_uid=current_user.user_uid, status="pending"
@@ -1006,7 +1009,7 @@ def approvals():
         .all()
     )
 
-    # Current user's own tickets awaiting any approval
+    # А тут уже заявки самого пользователя, которые сейчас висят на согласовании.
     waiting = (
         Ticket.query.filter_by(
             requester_uid=current_user.user_uid, status="pending_approval"
@@ -1031,7 +1034,8 @@ def approvals():
                 approval.approver.full_name() if approval.approver else "—",
             )
 
-    # History: approvals relevant to the current user
+    # История собирается не только по чужим решениям,
+    # но и по заявкам самого пользователя, чтобы было проще отследить цепочку.
     my_history = (
         TicketApproval.query.join(Ticket, Ticket.ticket_uid == TicketApproval.ticket_uid)
         .filter(
@@ -1046,7 +1050,7 @@ def approvals():
         .all()
     )
 
-    # Admin sees all approval records
+    # Админу даём полную картину, ему это в админке полезно.
     all_approvals = None
     if current_user.role == "admin":
         all_approvals = (
@@ -1066,7 +1070,7 @@ def approvals():
 
 
 # ============================================================
-# CATALOG API
+# ДАННЫЕ ПО КАТАЛОГУ
 # ============================================================
 
 
@@ -1087,7 +1091,7 @@ def get_catalog_item(catalog_uid):
 
 
 # ============================================================
-# PROFILE
+# МОЙ ПРОФИЛЬ
 # ============================================================
 
 
@@ -1133,7 +1137,7 @@ def profile_password():
 
 
 # ============================================================
-# PUBLIC PROFILE
+# ПУБЛИЧНЫЙ ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ
 # ============================================================
 
 
@@ -1151,7 +1155,7 @@ def user_public_profile(user_uid):
 
 
 # ============================================================
-# NOTIFICATIONS
+# УВЕДОМЛЕНИЯ
 # ============================================================
 
 
@@ -1207,7 +1211,7 @@ def mark_notifications_read():
 
 
 # ============================================================
-# TICKETS BOARD
+# ОБЩАЯ ДОСКА ЗАЯВОК
 # ============================================================
 
 
@@ -1239,7 +1243,7 @@ def _task_queue_query(filter_name="all", performer_uid=None, work_group_uid=None
     if current_user.role == "admin":
         if work_group_uid:
             query = query.filter(ServiceCatalog.work_group_uid == work_group_uid)
-        # admin without wg filter sees all tickets
+        # Если админ не выбрал группу, значит специально смотрит вообще всё.
     else:
         wg_uids = _wg_uids(current_user)
         query = query.filter(ServiceCatalog.work_group_uid.in_(wg_uids))
@@ -1300,7 +1304,7 @@ def list_task_queue():
 
 
 # ============================================================
-# TICKET API — CREATE
+# СОЗДАНИЕ ЗАЯВКИ
 # ============================================================
 
 
@@ -1319,8 +1323,9 @@ def create_ticket_form():
         flash("Услуга не найдена", "error")
         return redirect("/")
 
-    # Для формы используем стандартный сценарий: новая заявка, приоритет
-    # берём из каталога услуг, а инициатор является заявителем.
+    # Для формы держим простой сценарий:
+    # новая заявка создаётся от лица текущего пользователя,
+    # а приоритет подтягиваем из выбранной услуги.
     ticket = Ticket(
         ticket_number=generate_ticket_number(),
         catalog_uid=catalog_uid,
@@ -1353,7 +1358,7 @@ def create_ticket_form():
 
 
 # ============================================================
-# TICKET API — GET
+# ПОЛУЧЕНИЕ ДАННЫХ ПО ЗАЯВКЕ
 # ============================================================
 
 
@@ -1390,7 +1395,8 @@ def get_ticket(ticket_uid):
         return jsonify({"error": "Доступ запрещён"}), 403
 
     comments = []
-    # Внутренние комментарии показываем только тем, кто работает с заявкой.
+    # Внутренние заметки обычному пользователю не показываем.
+    # Иначе он увидит служебную кухню, которая ему вообще не нужна.
     for pv in (
         ticket.param_values.filter(
             TicketParamValue.param_type.in_(["comment", "internal_comment"])
@@ -1484,7 +1490,7 @@ def get_ticket(ticket_uid):
 
 
 # ============================================================
-# TICKET API — UPDATE
+# ИЗМЕНЕНИЕ ЗАЯВКИ
 # ============================================================
 
 
@@ -1535,14 +1541,15 @@ def update_ticket(ticket_uid):
     data = request.get_json() or {}
     action = data.get("action")
 
-    # Approve only needs the user to be a pending approver — checked inside the branch.
-    # All other mutating actions require edit permission.
+    # Для согласования отдельная логика прав:
+    # там важно не "может редактировать", а "назначен ли человек на текущий шаг".
+    # Все остальные изменения уже идут по обычной проверке доступа.
     if action != "approve" and not _can_edit_ticket(ticket):
         return jsonify({"error": "Доступ запрещён"}), 403
     now = datetime.utcnow()
 
     if action == "take":
-        # Специалист самостоятельно берёт заявку в работу.
+        # Быстрый сценарий: специалист сам забирает заявку себе, без лишних окон.
         if not is_specialist():
             return jsonify({"error": "Только специалист может взять заявку"}), 403
         old_perf = ticket.performer_uid
@@ -1566,7 +1573,7 @@ def update_ticket(ticket_uid):
         )
 
     elif action == "assign":
-        # Руководитель или администратор назначает исполнителя вручную.
+        # Тут уже ручное назначение, когда это делает руководитель или админ.
         if current_user.role not in ("admin", "manager"):
             return jsonify({"error": "Недостаточно прав"}), 403
         new_perf = data.get("performer_uid") or None
@@ -1609,7 +1616,7 @@ def update_ticket(ticket_uid):
             )
 
     elif action == "status":
-        # Простая смена статуса с записью в историю изменений.
+        # Отдельно пишем смену статуса в историю, чтобы потом не гадать, кто что менял.
         new_status = data.get("status")
         valid = [
             "new",
@@ -1639,7 +1646,8 @@ def update_ticket(ticket_uid):
         )
 
     elif action == "approve":
-        # Согласовать заявку может только тот, кому назначен текущий шаг.
+        # На этом шаге специально не доверяем фронту:
+        # ещё раз убеждаемся, что решение отправляет именно нужный согласующий.
         approval_uid = data.get("approval_uid")
         decision = data.get("decision")
         comment = (data.get("comment") or "").strip()
@@ -1655,7 +1663,7 @@ def update_ticket(ticket_uid):
         )
 
     elif action == "edit":
-        # Обновление основных полей карточки заявки.
+        # Это уже обычное редактирование карточки: тема, описание, исполнитель и всё такое.
         new_summary = (data.get("summary") or "").strip()
         new_desc = (data.get("description") or "").strip()
         new_prio = data.get("priority")
@@ -1684,7 +1692,7 @@ def update_ticket(ticket_uid):
             ticket.priority = new_prio
 
     elif action == "delete":
-        # Полное удаление оставляем только администратору.
+        # Полное удаление — штука опасная, поэтому оставляем только админу.
         if current_user.role != "admin":
             return jsonify({"error": "Только администратор может удалять заявки"}), 403
         db.session.delete(ticket)
@@ -1832,7 +1840,7 @@ def api_ticket_approve(ticket_uid):
 
 
 # ============================================================
-# TICKET API — BULK UPDATE
+# МАССОВЫЕ ДЕЙСТВИЯ ПО ЗАЯВКАМ
 # ============================================================
 
 
@@ -1862,7 +1870,7 @@ def bulk_update_tickets():
 
 
 # ============================================================
-# TICKET — COMMENT
+# КОММЕНТАРИИ К ЗАЯВКЕ
 # ============================================================
 
 
@@ -1942,7 +1950,7 @@ def add_comment_form(ticket_uid):
 
 
 # ============================================================
-# SPECIALISTS API
+# СПИСОК СПЕЦИАЛИСТОВ ДЛЯ ФОРМ И ФИЛЬТРОВ
 # ============================================================
 
 
@@ -1986,7 +1994,7 @@ def get_specialists():
 
 
 # ============================================================
-# MY TICKETS API
+# МОИ ЗАЯВКИ
 # ============================================================
 
 
@@ -2024,7 +2032,7 @@ def my_tickets():
 
 
 # ============================================================
-# SPECIALIST DASHBOARD
+# ДАШБОРД СПЕЦИАЛИСТА
 # ============================================================
 
 
@@ -2048,14 +2056,16 @@ def dashboard():
             )
         )
 
-    # Получаем все заявки специалиста, кроме полностью закрытых
+    # На дашборде держим только живые заявки.
+    # Закрытые и отменённые тут уже просто шумят.
     all_tickets = (
         base.filter(~Ticket.status.in_(["closed", "cancelled"]))
         .order_by(Ticket.created_at.desc())
         .all()
     )
 
-    # Группируем по новой логике канбана
+    # Разбрасываем заявки по колонкам канбана.
+    # Тут логика чуть отличается от простого статуса, поэтому делаем вручную.
     kanban_data = {
         "new_unassigned": [],
         "new_assigned": [],
@@ -2073,7 +2083,7 @@ def dashboard():
         elif ticket.status == "resolved":
             kanban_data["resolved"].append(ticket)
 
-    # Определяем порядок колонок
+    # Пока порядок колонок фиксированный, так глазами проще ориентироваться.
     ordered_kanban_data = kanban_data
 
     my_active = (
@@ -2128,7 +2138,7 @@ def dashboard():
 
 
 # ============================================================
-# ADMIN — USERS
+# АДМИНКА: ПОЛЬЗОВАТЕЛИ
 # ============================================================
 
 
@@ -2168,7 +2178,8 @@ def create_user():
         wg_uid = request.form.get("work_group_uid") or None
         manager_uid = request.form.get("manager_uid") or None
 
-        # Эти значения возвращаем обратно в форму, если при сохранении будет ошибка.
+        # Эти данные возвращаем обратно в форму,
+        # чтобы после ошибки не приходилось забивать всё заново.
         form_data = {
             "last_name": last_name,
             "first_name": first_name,
@@ -2219,7 +2230,8 @@ def create_user():
                 temp_password=temp_pw,
             )
         except Exception as e:
-            # Сырые ошибки БД переводим в понятные сообщения для интерфейса.
+            # Ошибку БД наружу не тащим как есть.
+            # Пользователю всё равно важнее нормальное объяснение человеческими словами.
             db.session.rollback()
             err_str = str(e)
             if "value too long" in err_str or "StringDataRightTruncation" in err_str:
@@ -2268,11 +2280,11 @@ def edit_user(user_uid):
     )
 
     if request.method == "POST":
-        # Обязательные поля не затираем пустыми строками.
+        # Обязательные поля не даём случайно затереть пустотой.
         user.first_name = request.form.get("first_name", "").strip() or user.first_name
         user.last_name = request.form.get("last_name", "").strip() or user.last_name
         user.email = request.form.get("email", "").strip() or user.email
-        # Необязательные поля можно очистить, оставив пустое значение.
+        # А вот необязательные поля можно спокойно обнулить.
         user.middel_name = request.form.get("middle_name", "").strip() or None
         user.mobile = format_mobile(request.form.get("mobile", "").strip()) or None
         user.work_phone = request.form.get("work_phone", "").strip() or None
@@ -2332,7 +2344,7 @@ def admin_reset_password(user_uid):
 
 
 # ============================================================
-# ADMIN — CATEGORIES
+# АДМИНКА: КАТАЛОГ УСЛУГ
 # ============================================================
 
 
@@ -2377,7 +2389,7 @@ def create_category():
         prio = request.form.get("priority", "medium")
         sla_uid = request.form.get("sla_uid") or None
         appr = "approval_required" in request.form
-        # Если указан родительский раздел, значит создаём услугу внутри категории.
+        # Если выбран родитель, значит это уже не верхний раздел, а конкретная услуга внутри него.
         cat_type = "service" if parent_uid else "category"
         db.session.add(
             ServiceCatalog(
@@ -2474,7 +2486,8 @@ def delete_category(cat_uid):
             return jsonify({"error": msg}), 400
         flash(msg, "error")
         return redirect("/admin/categories")
-    # Для верхнего раздела дополнительно проверяем вложенные услуги.
+    # Для верхнего раздела отдельно смотрим вложенные услуги,
+    # чтобы не снести кусок каталога, который ещё где-то используется.
     for child in cat.children.all():
         if Ticket.query.filter_by(catalog_uid=child.catalog_uid).count() == 0:
             db.session.delete(child)
@@ -2493,7 +2506,7 @@ def delete_category(cat_uid):
 
 
 # ============================================================
-# ADMIN — WORK GROUPS
+# АДМИНКА: РАБОЧИЕ ГРУППЫ
 # ============================================================
 
 
@@ -2560,7 +2573,7 @@ def delete_work_group(wg_uid):
 
 
 # ============================================================
-# RUN
+# ЗАПУСК ПРИЛОЖЕНИЯ
 # ============================================================
 
 if __name__ == "__main__":

@@ -1,11 +1,15 @@
 let assignTarget = null;
 
+// Набор статусов для быстрого селекта в таблице заявок.
+// Держим их в одном месте, чтобы потом не ловить рассинхрон между страницами.
 const STATUSES = [
   { value: 'new', label: 'Новая' },
   { value: 'in_progress', label: 'В работе' },
   { value: 'resolved', label: 'Решена' },
 ];
 
+// Подписи приоритетов тоже лучше хранить рядом.
+// Так удобнее и в форме создания заявки, и в таблицах.
 const PRIORITY_LABELS = {
   low: 'Низкий',
   medium: 'Средний',
@@ -43,12 +47,17 @@ function updateTicketPriorityPreview() {
   const catalogField = document.getElementById('ticket-catalog-field');
   if (!catalogSelect || !preview) return;
 
+  // Сразу показываем, какой приоритет придёт из каталога.
+  // Это мелочь, но так пользователь лучше понимает, что создаёт.
   const selectedOption = catalogSelect.options[catalogSelect.selectedIndex];
   const priorityCode = selectedOption?.dataset?.priority || 'medium';
   preview.textContent = PRIORITY_LABELS[priorityCode] || priorityCode;
 
   if (selectedOption && selectedServiceBox && selectedServiceName) {
     selectedServiceName.textContent = selectedOption.dataset.path || selectedOption.textContent;
+
+    // Если услугу выбрали из дерева, селект скрыт.
+    // В этом режиме показываем отдельный блок с уже зафиксированной услугой.
     const isCatalogLocked = catalogField?.classList.contains('hidden');
     selectedServiceBox.classList.toggle('hidden', !isCatalogLocked);
   }
@@ -60,10 +69,14 @@ function openCreateTicketModal(catalogUid = null) {
   const selectedServiceBox = document.getElementById('ticket-selected-service-box');
   const ticketFormGrid = document.getElementById('ticket-form-grid');
 
+  // Если модалку открыли из дерева услуг,
+  // выбор услуги уже не нужен: просто фиксируем её и не дублируем поле.
   if (catalogField) {
     catalogField.classList.toggle('hidden', !!catalogUid);
   }
 
+  // Когда услуга зафиксирована, сетку формы делаем проще,
+  // чтобы поле темы не выглядело зажатым.
   if (ticketFormGrid) {
     ticketFormGrid.classList.toggle('ticket-form-grid-locked', !!catalogUid);
   }
@@ -79,6 +92,8 @@ function openCreateTicketModal(catalogUid = null) {
   updateTicketPriorityPreview();
   openModal('create-modal');
 
+  // После открытия сразу ставим фокус на тему,
+  // чтобы можно было печатать без лишнего клика.
   window.setTimeout(() => {
     document.querySelector('#create-modal input[name="summary"]')?.focus();
   }, 0);
@@ -88,6 +103,7 @@ async function loadTickets(filter = 'all', userId = '', workGroupId = '') {
   const params = new URLSearchParams({ filter });
   if (userId) params.set('user_id', userId);
   if (workGroupId) params.set('work_group_uid', workGroupId);
+
   const res = await fetch(`/api/tickets?${params.toString()}`);
   if (!res.ok) return;
 
@@ -96,13 +112,17 @@ async function loadTickets(filter = 'all', userId = '', workGroupId = '') {
   if (!tbody) return;
 
   tbody.innerHTML = '';
+
   if (!tickets.length) {
     tbody.innerHTML = '<tr><td colspan="7">Задачи не найдены</td></tr>';
     return;
   }
 
+  // Таблицу пересобираем целиком из ответа API.
+  // Для такой страницы это проще и понятнее, чем держать кучу мелких обновлений.
   tbody.innerHTML = tickets.map(ticket => {
     const overdueClass = ticket.is_overdue ? ' class="overdue"' : '';
+
     return `<tr${overdueClass}>
       <td><a href="/ticket/${ticket.ticket_uid}">${esc(ticket.ticket_number)}</a></td>
       <td>${esc(ticket.summary)}</td>
@@ -139,6 +159,8 @@ async function loadUsers() {
     `<option value="${user.user_uid}">${esc(user.full_name)}</option>`
   )).join('');
 
+  // Один и тот же список пользователей используем и в фильтре,
+  // и в модалке назначения, чтобы не дублировать запросы.
   byPerformer.innerHTML = '<option value="">— по исполнителю —</option>' + options;
   assignUser.innerHTML = '<option value="">Выбрать исполнителя</option>' + options;
 }
@@ -180,6 +202,7 @@ async function changeStatus(uid, status) {
   if (!res.ok) {
     alert(payload.error || 'Не удалось обновить статус');
   }
+
   await applyFilter();
 }
 
@@ -189,6 +212,8 @@ function renderNotifications(data) {
   const markAllButton = document.getElementById('notif-mark-all');
   if (!badge || !list) return;
 
+  // Бейдж и кнопка "прочитать всё" завязаны на одно число.
+  // Так интерфейс не начинает жить своей жизнью отдельно от данных.
   badge.textContent = data.count;
   badge.classList.toggle('hidden', !data.count);
   markAllButton?.classList.toggle('hidden', !data.count);
@@ -208,12 +233,16 @@ function renderNotifications(data) {
 async function pollNotifications() {
   const res = await fetch('/api/notifications');
   if (!res.ok) return;
+
   const data = await res.json();
   renderNotifications(data);
 }
 
 async function markNotificationsRead(uid = null) {
   const payload = uid ? { uid } : {};
+
+  // keepalive оставляем, чтобы запрос успел уйти даже если пользователь
+  // кликнул по уведомлению и страница тут же начала переход.
   await fetch('/api/notifications/read', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -234,6 +263,7 @@ async function openNotification(event, uid, ticketUid) {
   if (uid) {
     await markNotificationsRead(uid);
   }
+
   await pollNotifications();
 
   if (ticketUid) {
@@ -250,6 +280,8 @@ async function toggleNotifDropdown(event) {
   const isOpening = dropdown.classList.contains('hidden');
   dropdown.classList.toggle('hidden');
 
+  // Когда открываем список, сразу подтягиваем свежие данные,
+  // чтобы человек не смотрел на старый кэш.
   if (isOpening) {
     await pollNotifications();
   }
@@ -259,6 +291,8 @@ function initKanban() {
   const cards = document.querySelectorAll('.ticket-card');
   const columns = document.querySelectorAll('.kanban-column');
 
+  // Канбан тут без отдельной библиотеки.
+  // Поэтому события на drag-and-drop вешаем сами и один раз при старте страницы.
   cards.forEach(card => {
     card.addEventListener('dragstart', handleDragStart);
   });
@@ -291,6 +325,8 @@ function initKanban() {
     const newStatus = targetColumn.dataset.status;
     const ticketUid = draggedCard.dataset.ticketUid;
 
+    // После успешного переноса всё равно обновляем страницу.
+    // Не самый модный вариант, зато состояние точно совпадает с сервером.
     fetch(`/tickets/${ticketUid}/status`, {
       method: 'POST',
       headers: {
@@ -315,6 +351,8 @@ function initKanban() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Тут идёт общий старт страницы:
+  // подтягиваем фильтры, справочники, уведомления и, если нужно, канбан.
   await loadUsers();
   await applyFilter();
   updateTicketPriorityPreview();
@@ -328,6 +366,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     const wrapper = document.getElementById('notif-wrapper');
     const dropdown = document.getElementById('notif-dropdown');
     if (!wrapper || !dropdown || dropdown.classList.contains('hidden')) return;
+
+    // Клик вне выпадашки её закрывает.
+    // Так она не остаётся висеть на экране после случайных кликов по странице.
     if (!wrapper.contains(event.target)) {
       dropdown.classList.add('hidden');
     }
@@ -351,11 +392,13 @@ async function postJSON(url, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {})
   });
+
   return response.json();
 }
 
 async function deactivateUser(uid) {
   if (!confirm('Деактивировать пользователя?')) return;
+
   const data = await postJSON(`/admin/delete-user/${uid}`);
   if (data.success) {
     location.reload();
@@ -375,6 +418,7 @@ async function resetPassword(uid) {
 
 async function deleteCategory(uid) {
   if (!confirm('Деактивировать категорию/услугу?')) return;
+
   const data = await postJSON(`/admin/delete-category/${uid}`);
   if (data.success) {
     location.reload();
@@ -402,6 +446,7 @@ async function createWorkGroup() {
 
 async function deleteWorkGroup(uid) {
   if (!confirm('Удалить рабочую группу?')) return;
+
   const data = await postJSON(`/admin/delete-work-group/${uid}`);
   if (data.success) {
     location.reload();
@@ -414,6 +459,7 @@ async function createTicket() {
   const catalogUid = document.getElementById('new_catalog_uid')?.value;
   const summary = document.getElementById('new_summary')?.value.trim();
   const description = document.getElementById('new_description')?.value.trim();
+
   const data = await postJSON('/api/tickets', {
     catalog_uid: catalogUid,
     summary,
