@@ -322,6 +322,8 @@ class Ticket(db.Model):
     )
     status = db.Column(db.String(50), default="new", nullable=False)
     priority = db.Column(db.String(20), default="medium")
+    response_due_at = db.Column(db.DateTime, nullable=True)
+    responded_at = db.Column(db.DateTime, nullable=True)
     deadline_at = db.Column(db.DateTime, nullable=True)
     resolved_at = db.Column(db.DateTime, nullable=True)
     closed_at = db.Column(db.DateTime, nullable=True)
@@ -837,8 +839,24 @@ def add_ticket_history(ticket_uid, field_name, old_value, new_value, changed_by_
     db.session.add(history_record)
 
 
-def compute_deadline(catalog):
-    """Рассчитывает дедлайн заявки по SLA или по приоритету по умолчанию."""
+def compute_response_deadline(catalog, base_time=None):
+    """Считает срок первой реакции по SLA или по дефолтным правилам."""
+    base_time = base_time or datetime.utcnow()
+    response_hours = 8
+    if getattr(catalog, "sla", None) and getattr(catalog.sla, "response_time_hours", None):
+        response_hours = catalog.sla.response_time_hours
+    elif getattr(catalog, "priority", None) == "critical":
+        response_hours = 1
+    elif getattr(catalog, "priority", None) == "high":
+        response_hours = 2
+    elif getattr(catalog, "priority", None) == "low":
+        response_hours = 24
+    return base_time + timedelta(hours=response_hours)
+
+
+def compute_deadline(catalog, base_time=None):
+    """Рассчитывает дедлайн решения заявки по SLA или по приоритету по умолчанию."""
+    base_time = base_time or datetime.utcnow()
     deadline_hours = 24
     if getattr(catalog, "sla", None) and getattr(
         catalog.sla, "resolution_time_hours", None
@@ -850,7 +868,7 @@ def compute_deadline(catalog):
         deadline_hours = 8
     elif getattr(catalog, "priority", None) == "low":
         deadline_hours = 72
-    return datetime.utcnow() + timedelta(hours=deadline_hours)
+    return base_time + timedelta(hours=deadline_hours)
 
 
 def notify(user_uid, message, ticket_uid=None):
@@ -906,6 +924,11 @@ def create_approval_chain(ticket, catalog, requester):
             )
         )
         ticket.status = "pending_approval"
+        ticket.response_due_at = None
+        ticket.responded_at = None
+        ticket.deadline_at = None
+        ticket.resolved_at = None
+        ticket.closed_at = None
         notify(
             approver_uid,
             f"Требуется согласование заявки {ticket.ticket_number}",
@@ -927,6 +950,11 @@ def process_approval_decision(ticket, approval, decision, comment, actor_uid):
     if decision == "rejected":
         previous = ticket.status
         ticket.status = "rejected"
+        ticket.response_due_at = None
+        ticket.responded_at = None
+        ticket.deadline_at = None
+        ticket.resolved_at = None
+        ticket.closed_at = None
         add_ticket_history(ticket.ticket_uid, "status", previous, "rejected", actor_uid)
         notify_ticket_update(
             ticket, f"Заявка {ticket.ticket_number} отклонена", exclude_uid=actor_uid
@@ -952,6 +980,13 @@ def process_approval_decision(ticket, approval, decision, comment, actor_uid):
     else:
         previous = ticket.status
         ticket.status = "new"
+        if ticket.catalog:
+            ticket.response_due_at = compute_response_deadline(
+                ticket.catalog, approval.decided_at
+            )
+            ticket.deadline_at = compute_deadline(ticket.catalog, approval.decided_at)
+        ticket.resolved_at = None
+        ticket.closed_at = None
         add_ticket_history(ticket.ticket_uid, "status", previous, "new", actor_uid)
         notify_ticket_update(
             ticket, f"Заявка {ticket.ticket_number} согласована", exclude_uid=actor_uid

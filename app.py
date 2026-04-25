@@ -51,6 +51,7 @@ from models import (
     _ensure_role,
     _ensure_work_group,
     generate_ticket_number,
+    compute_response_deadline,
     compute_deadline,
     add_ticket_history,
     notify,
@@ -191,6 +192,50 @@ def _admin_forbidden():
     if request.is_json:
         return jsonify({"error": "Доступ запрещён"}), 403
     return "Доступ запрещён", 403
+
+
+def _start_ticket_sla(ticket, catalog=None, started_at=None):
+    """Запускает SLA-таймеры от нужной точки времени."""
+    target_catalog = catalog or ticket.catalog
+    if not target_catalog:
+        return
+    ticket.response_due_at = compute_response_deadline(target_catalog, started_at)
+    ticket.deadline_at = compute_deadline(target_catalog, started_at)
+
+
+def _mark_ticket_responded(ticket, responded_at=None):
+    """Фиксирует первую реакцию только один раз."""
+    if ticket.responded_at:
+        return
+    ticket.responded_at = responded_at or datetime.utcnow()
+
+
+def _apply_ticket_status_dates(ticket, new_status, changed_at=None):
+    """Держит resolved_at, closed_at и дату первой реакции в согласованном состоянии."""
+    changed_at = changed_at or datetime.utcnow()
+    if new_status in {
+        "assigned",
+        "in_progress",
+        "on_hold",
+        "resolved",
+        "closed",
+        "cancelled",
+    }:
+        _mark_ticket_responded(ticket, changed_at)
+
+    if new_status in {"new", "assigned", "in_progress", "on_hold"}:
+        ticket.resolved_at = None
+        ticket.closed_at = None
+    elif new_status == "resolved":
+        ticket.resolved_at = changed_at
+        ticket.closed_at = None
+    elif new_status == "closed":
+        if ticket.resolved_at is None:
+            ticket.resolved_at = changed_at
+        ticket.closed_at = changed_at
+    elif new_status in {"cancelled", "rejected"}:
+        ticket.resolved_at = None
+        ticket.closed_at = None
 
 
 # ============================================================
@@ -418,6 +463,8 @@ def init_db():
         text(
             """
         ALTER TABLE IF EXISTS sm.tickets
+            ADD COLUMN IF NOT EXISTS response_due_at timestamptz NULL,
+            ADD COLUMN IF NOT EXISTS responded_at timestamptz NULL,
             ADD COLUMN IF NOT EXISTS deadline_at timestamptz NULL
     """
         )
@@ -1335,10 +1382,11 @@ def create_ticket_form():
         recipient_uid=current_user.user_uid,
         status="new",
         priority=catalog.priority or "medium",
-        deadline_at=compute_deadline(catalog),
         created_by=current_user.user_uid,
         updated_by=current_user.user_uid,
     )
+    if not catalog.approval_required:
+        _start_ticket_sla(ticket, catalog)
     db.session.add(ticket)
     db.session.flush()
     add_ticket_history(ticket.ticket_uid, "status", None, "new", current_user.user_uid)
@@ -1488,6 +1536,16 @@ def get_ticket(ticket_uid):
             "requester_uid": ticket.requester_uid,
             "performer": ticket.performer.full_name() if ticket.performer else None,
             "performer_uid": ticket.performer_uid,
+            "response_due_at": (
+                ticket.response_due_at.strftime("%d.%m.%Y %H:%M")
+                if ticket.response_due_at
+                else None
+            ),
+            "responded_at": (
+                ticket.responded_at.strftime("%d.%m.%Y %H:%M")
+                if ticket.responded_at
+                else None
+            ),
             "deadline": (
                 ticket.deadline_at.strftime("%d.%m.%Y %H:%M")
                 if ticket.deadline_at
@@ -1535,8 +1593,7 @@ def update_ticket_form(ticket_uid):
             ticket_uid, "status", ticket.status, new_status, current_user.user_uid
         )
         ticket.status = new_status
-        if new_status == "resolved":
-            ticket.resolved_at = now
+        _apply_ticket_status_dates(ticket, new_status, now)
     if "performer_uid" in request.form and new_performer != ticket.performer_uid:
         add_ticket_history(
             ticket_uid,
@@ -1546,6 +1603,8 @@ def update_ticket_form(ticket_uid):
             current_user.user_uid,
         )
         ticket.performer_uid = new_performer
+        if new_performer:
+            _mark_ticket_responded(ticket, now)
     ticket.updated_at = now
     ticket.updated_by = current_user.user_uid
     db.session.commit()
@@ -1636,6 +1695,7 @@ def update_ticket(ticket_uid):
         add_ticket_history(
             ticket_uid, "status", old_st, "in_progress", current_user.user_uid
         )
+        _apply_ticket_status_dates(ticket, "in_progress", now)
         notify_ticket_update(
             ticket,
             f"Заявку {ticket.ticket_number} взял в работу {current_user.full_name()}",
@@ -1674,6 +1734,7 @@ def update_ticket(ticket_uid):
         )
         ticket.performer_uid = new_perf
         ticket.status = "in_progress" if new_perf else "new"
+        _apply_ticket_status_dates(ticket, ticket.status, now)
         if old_st != ticket.status:
             add_ticket_history(
                 ticket_uid, "status", old_st, ticket.status, current_user.user_uid
@@ -1705,10 +1766,7 @@ def update_ticket(ticket_uid):
             ticket_uid, "status", old_st, new_status, current_user.user_uid
         )
         ticket.status = new_status
-        if new_status == "resolved":
-            ticket.resolved_at = now
-        if new_status == "closed":
-            ticket.closed_at = now
+        _apply_ticket_status_dates(ticket, new_status, now)
         notify_ticket_update(
             ticket,
             f"Статус заявки {ticket.ticket_number} изменён",
@@ -1722,6 +1780,7 @@ def update_ticket(ticket_uid):
         decision = data.get("decision")
         comment = (data.get("comment") or "").strip()
         approval = TicketApproval.query.filter_by(
+            ticket_uid=ticket_uid,
             approval_uid=approval_uid,
             approver_uid=current_user.user_uid,
             status="pending",
@@ -1805,6 +1864,7 @@ def api_assign_ticket(ticket_uid):
     old_status = ticket.status
     ticket.performer_uid = performer_uid
     ticket.status = "in_progress"
+    _apply_ticket_status_dates(ticket, "in_progress", datetime.utcnow())
     add_ticket_history(
         ticket.ticket_uid,
         "performer_uid",
@@ -1850,8 +1910,6 @@ def api_ticket_status(ticket_uid):
         "in_progress",
         "on_hold",
         "pending_approval",
-        "approved",
-        "rejected",
         "resolved",
         "closed",
         "cancelled",
@@ -1860,15 +1918,15 @@ def api_ticket_status(ticket_uid):
         return jsonify({"error": "Недопустимый статус"}), 400
     old_status = ticket.status
     ticket.status = new_status
-    ticket.updated_at = datetime.utcnow()
+    change_time = datetime.utcnow()
+    ticket.updated_at = change_time
     ticket.updated_by = current_user.user_uid
     if new_status == "new":
         ticket.performer_uid = None
     elif new_status == "assigned":
         if ticket.performer_uid is None:
             ticket.performer_uid = current_user.user_uid
-    if new_status == "resolved":
-        ticket.resolved_at = datetime.utcnow()
+    _apply_ticket_status_dates(ticket, new_status, change_time)
     add_ticket_history(
         ticket.ticket_uid, "status", old_status, new_status, current_user.user_uid
     )
@@ -1931,12 +1989,67 @@ def bulk_update_tickets():
     if not uids:
         return jsonify({"error": "Нет заявок для обновления"}), 400
     now = datetime.utcnow()
-    Ticket.query.filter(Ticket.ticket_uid.in_(uids)).update(
-        {"status": new_status, "updated_at": now, "updated_by": current_user.user_uid},
-        synchronize_session=False,
-    )
+    tickets = Ticket.query.filter(Ticket.ticket_uid.in_(uids)).all()
+    updated = []
+    skipped = []
+
+    for ticket in tickets:
+        if not _can_edit_ticket(ticket):
+            skipped.append(
+                {
+                    "ticket_uid": ticket.ticket_uid,
+                    "ticket_number": ticket.ticket_number,
+                    "reason": "forbidden",
+                }
+            )
+            continue
+        if ticket.status == "pending_approval":
+            skipped.append(
+                {
+                    "ticket_uid": ticket.ticket_uid,
+                    "ticket_number": ticket.ticket_number,
+                    "reason": "pending_approval",
+                }
+            )
+            continue
+        if ticket.status == new_status:
+            skipped.append(
+                {
+                    "ticket_uid": ticket.ticket_uid,
+                    "ticket_number": ticket.ticket_number,
+                    "reason": "unchanged",
+                }
+            )
+            continue
+
+        old_status = ticket.status
+        ticket.status = new_status
+        ticket.updated_at = now
+        ticket.updated_by = current_user.user_uid
+        _apply_ticket_status_dates(ticket, new_status, now)
+        add_ticket_history(
+            ticket.ticket_uid,
+            "status",
+            old_status,
+            new_status,
+            current_user.user_uid,
+        )
+        notify_ticket_update(
+            ticket,
+            f"Статус заявки {ticket.ticket_number} изменён",
+            exclude_uid=current_user.user_uid,
+        )
+        updated.append(ticket.ticket_uid)
+
     db.session.commit()
-    return jsonify({"success": True})
+    return jsonify(
+        {
+            "success": True,
+            "updated_count": len(updated),
+            "updated_ticket_uids": updated,
+            "skipped": skipped,
+        }
+    )
 
 
 # ============================================================
