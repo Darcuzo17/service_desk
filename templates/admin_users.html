@@ -10,10 +10,66 @@
   .admin-user-action-form {
     margin: 0;
   }
+
+  .password-reset-modal {
+    width: 100%;
+    max-width: 540px;
+  }
+
+  .password-reset-modal h3 {
+    margin-bottom: 8px;
+  }
+
+  .password-reset-modal p {
+    margin-bottom: 14px;
+  }
+
+  .password-reset-secret {
+    padding: 16px 18px;
+    border: 1px solid rgba(43, 108, 176, 0.16);
+    border-radius: 16px;
+    background: linear-gradient(180deg, rgba(241, 247, 255, 0.96), rgba(255, 255, 255, 0.98));
+  }
+
+  .password-reset-secret label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 0.86rem;
+  }
+
+  .password-reset-secret-row {
+    display: flex;
+    gap: 10px;
+    align-items: stretch;
+  }
+
+  .password-reset-secret-row input {
+    min-width: 0;
+    flex: 1;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .password-reset-copy-status {
+    min-height: 20px;
+    margin-top: 10px;
+    color: var(--success);
+    font-size: 0.9rem;
+  }
+
+  @media (max-width: 720px) {
+    .password-reset-secret-row {
+      flex-direction: column;
+    }
+  }
 </style>
+
 <div class="card">
   <div class="inline" style="justify-content:space-between;">
-    <h2>Пользователи</h2><a class="btn btn-primary" href="{{ url_for('create_user') }}">Создать пользователя</a>
+    <h2>Пользователи</h2>
+    <a class="btn btn-primary" href="{{ url_for('create_user') }}">Создать пользователя</a>
   </div>
   <table class="table">
     <tr>
@@ -36,8 +92,7 @@
       <td>{{ 'Деактивирован' if u.is_deactivated else 'Активен' }}</td>
       <td class="actions">
         <a class="btn admin-user-action-btn" href="{{ url_for('edit_user', user_uid=u.user_uid) }}">Редактировать</a>
-        <button class="btn admin-user-action-btn" type="button" onclick="resetPassword('{{ u.user_uid }}')">Сброс
-          пароля</button>
+        <button class="btn admin-user-action-btn" type="button" onclick="resetPassword('{{ u.user_uid }}')">Сброс пароля</button>
         {% if u.user_uid != current_user.user_uid %}
         <form class="admin-user-action-form" method="POST" action="/admin/delete-user/{{ u.user_uid }}"
           onsubmit="return confirm('Деактивировать?')">
@@ -49,4 +104,96 @@
     {% endfor %}
   </table>
 </div>
+
+<div id="password-reset-modal" class="modal hidden" style="padding:16px;">
+  <div class="card modal-box password-reset-modal">
+    <div class="inline" style="justify-content:space-between;">
+      <h3>Новый пароль</h3>
+      <button class="btn" type="button" onclick="closePasswordResetModal()">Закрыть</button>
+    </div>
+    <p class="muted">Пароль уже сброшен. Его можно сразу скопировать и передать пользователю.</p>
+    <div class="password-reset-secret">
+      <label for="password-reset-value">Временный пароль</label>
+      <div class="password-reset-secret-row">
+        <input id="password-reset-value" type="text" readonly>
+        <button class="btn btn-primary" type="button" onclick="copyResetPassword()">Копировать</button>
+      </div>
+      <div id="password-reset-copy-status" class="password-reset-copy-status"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function showPasswordResetModal(password) {
+    const input = document.getElementById('password-reset-value');
+    const status = document.getElementById('password-reset-copy-status');
+    if (!input) {
+      alert(`Новый пароль: ${password}`);
+      return;
+    }
+
+    input.value = password || '';
+    if (status) {
+      status.textContent = '';
+    }
+
+    openModal('password-reset-modal');
+    window.setTimeout(() => {
+      input.focus();
+      input.select();
+    }, 0);
+  }
+
+  function closePasswordResetModal() {
+    const status = document.getElementById('password-reset-copy-status');
+    if (status) {
+      status.textContent = '';
+    }
+    closeModal('password-reset-modal');
+  }
+
+  async function copyResetPassword() {
+    const input = document.getElementById('password-reset-value');
+    const status = document.getElementById('password-reset-copy-status');
+    if (!input) return;
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(input.value);
+      } else {
+        input.focus();
+        input.select();
+        document.execCommand('copy');
+      }
+
+      if (status) {
+        status.textContent = 'Пароль скопирован';
+      }
+    } catch (error) {
+      input.focus();
+      input.select();
+      if (status) {
+        status.textContent = 'Не удалось скопировать автоматически. Можно скопировать пароль вручную.';
+      }
+    }
+  }
+
+  async function resetPassword(uid) {
+    const response = await fetch(`/admin/reset-password/${uid}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (response.ok && data.success) {
+      showPasswordResetModal(data.new_password);
+      return;
+    }
+
+    alert(data.error || 'Ошибка при сбросе пароля');
+  }
+</script>
 {% endblock %}
