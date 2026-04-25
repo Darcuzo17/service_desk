@@ -51,8 +51,8 @@
               <div class="form-field">
                 <label for="gender">Пол</label>
                 <select id="gender" name="gender">
-                  <option value="male" {% if data.get('gender') != 'female' %}selected{% endif %}>Мужской</option>
-                  <option value="female" {% if data.get('gender') == 'female' %}selected{% endif %}>Женский</option>
+                  <option value="male" {% if data.get('gender') !='female' %}selected{% endif %}>Мужской</option>
+                  <option value="female" {% if data.get('gender')=='female' %}selected{% endif %}>Женский</option>
                 </select>
               </div>
               <div class="form-field">
@@ -92,7 +92,8 @@
                 <select id="manager_uid" name="manager_uid">
                   <option value="">Не указан</option>
                   {% for u in all_users %}
-                  <option value="{{ u.user_uid }}" {% if data.get('manager_uid') == u.user_uid %}selected{% endif %}>{{ u.full_name() }}</option>
+                  <option value="{{ u.user_uid }}" {% if data.get('manager_uid')==u.user_uid %}selected{% endif %}>{{
+                    u.full_name() }}</option>
                   {% endfor %}
                 </select>
               </div>
@@ -107,10 +108,12 @@
               <div class="form-field">
                 <label for="role">Роль</label>
                 <select id="role" name="role">
-                  <option value="user" {% if data.get('role', 'user') == 'user' %}selected{% endif %}>Пользователь</option>
-                  <option value="specialist" {% if data.get('role') == 'specialist' %}selected{% endif %}>Специалист</option>
-                  <option value="manager" {% if data.get('role') == 'manager' %}selected{% endif %}>Менеджер</option>
-                  <option value="admin" {% if data.get('role') == 'admin' %}selected{% endif %}>Администратор</option>
+                  <option value="user" {% if data.get('role', 'user' )=='user' %}selected{% endif %}>Пользователь
+                  </option>
+                  <option value="specialist" {% if data.get('role')=='specialist' %}selected{% endif %}>Специалист
+                  </option>
+                  <option value="manager" {% if data.get('role')=='manager' %}selected{% endif %}>Менеджер</option>
+                  <option value="admin" {% if data.get('role')=='admin' %}selected{% endif %}>Администратор</option>
                 </select>
               </div>
               <div class="form-field">
@@ -118,7 +121,8 @@
                 <select id="work_group_uid" name="work_group_uid">
                   <option value="">Не выбрана</option>
                   {% for wg in work_groups %}
-                  <option value="{{ wg.work_group_uid }}" {% if data.get('work_group_uid') == wg.work_group_uid %}selected{% endif %}>{{ wg.group_name }}</option>
+                  <option value="{{ wg.work_group_uid }}" {% if data.get('work_group_uid')==wg.work_group_uid
+                    %}selected{% endif %}>{{ wg.group_name }}</option>
                   {% endfor %}
                 </select>
               </div>

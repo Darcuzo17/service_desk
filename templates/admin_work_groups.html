@@ -13,14 +13,19 @@
 </div>
 <div class="card">
   <table class="table">
-    <tr><th>Название</th><th>Описание</th><th>Действия</th></tr>
+    <tr>
+      <th>Название</th>
+      <th>Описание</th>
+      <th>Действия</th>
+    </tr>
     {% for wg in groups %}
     <tr>
       <td>{{ wg.group_name }}</td>
       <td>{{ wg.group_description or '—' }}</td>
       <td>
         {% if wg.isactive %}
-        <form method="POST" action="/admin/delete-work-group/{{ wg.work_group_uid }}" onsubmit="return confirm('Удалить рабочую группу?')">
+        <form method="POST" action="/admin/delete-work-group/{{ wg.work_group_uid }}"
+          onsubmit="return confirm('Удалить рабочую группу?')">
           <button class="btn btn-danger" type="submit">Удалить</button>
         </form>
         {% endif %}

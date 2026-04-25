@@ -843,7 +843,9 @@ def compute_response_deadline(catalog, base_time=None):
     """Считает срок первой реакции по SLA или по дефолтным правилам."""
     base_time = base_time or datetime.utcnow()
     response_hours = 8
-    if getattr(catalog, "sla", None) and getattr(catalog.sla, "response_time_hours", None):
+    if getattr(catalog, "sla", None) and getattr(
+        catalog.sla, "response_time_hours", None
+    ):
         response_hours = catalog.sla.response_time_hours
     elif getattr(catalog, "priority", None) == "critical":
         response_hours = 1

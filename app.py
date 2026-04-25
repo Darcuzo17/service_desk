@@ -1084,7 +1084,9 @@ def approvals():
     # История собирается не только по чужим решениям,
     # но и по заявкам самого пользователя, чтобы было проще отследить цепочку.
     my_history = (
-        TicketApproval.query.join(Ticket, Ticket.ticket_uid == TicketApproval.ticket_uid)
+        TicketApproval.query.join(
+            Ticket, Ticket.ticket_uid == TicketApproval.ticket_uid
+        )
         .filter(
             TicketApproval.status.in_(["approved", "rejected"]),
             db.or_(
@@ -1641,9 +1643,11 @@ def approve_ticket_form(ticket_uid):
         return redirect(f"/ticket/{ticket_uid}")
 
     flash(
-        "Решение по согласованию сохранено"
-        if decision == "approved"
-        else "Заявка отклонена",
+        (
+            "Решение по согласованию сохранено"
+            if decision == "approved"
+            else "Заявка отклонена"
+        ),
         "success",
     )
     return redirect(f"/ticket/{ticket_uid}")
@@ -1721,7 +1725,9 @@ def update_ticket(ticket_uid):
             )
             if not member:
                 return (
-                    jsonify({"error": "Исполнитель не состоит в рабочей группе заявки"}),
+                    jsonify(
+                        {"error": "Исполнитель не состоит в рабочей группе заявки"}
+                    ),
                     400,
                 )
         old_st = ticket.status
@@ -1835,6 +1841,7 @@ def update_ticket(ticket_uid):
     ticket.updated_by = current_user.user_uid
     db.session.commit()
     return jsonify({"success": True})
+
 
 @app.route("/tickets/<ticket_uid>/assign", methods=["POST"])
 @login_required

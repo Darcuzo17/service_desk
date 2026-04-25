@@ -27,14 +27,16 @@
               </div>
               <div class="form-field form-span-2">
                 <label for="catalog_description">Описание</label>
-                <textarea id="catalog_description" name="catalog_description" class="form-textarea">{{ cat.catalog_description or '' }}</textarea>
+                <textarea id="catalog_description" name="catalog_description"
+                  class="form-textarea">{{ cat.catalog_description or '' }}</textarea>
               </div>
               <div class="form-field">
                 <label for="parent_uid">Родительская категория</label>
                 <select id="parent_uid" name="parent_uid">
                   <option value="">Без родителя</option>
                   {% for c in top_cats %}
-                  <option value="{{ c.catalog_uid }}" {% if cat.parent_uid == c.catalog_uid %}selected{% endif %}>{{ c.catalog_name }}</option>
+                  <option value="{{ c.catalog_uid }}" {% if cat.parent_uid==c.catalog_uid %}selected{% endif %}>{{
+                    c.catalog_name }}</option>
                   {% endfor %}
                 </select>
               </div>
@@ -43,7 +45,8 @@
                 <select id="work_group_uid" name="work_group_uid">
                   <option value="">Не выбрана</option>
                   {% for wg in work_groups %}
-                  <option value="{{ wg.work_group_uid }}" {% if cat.work_group_uid == wg.work_group_uid %}selected{% endif %}>{{ wg.group_name }}</option>
+                  <option value="{{ wg.work_group_uid }}" {% if cat.work_group_uid==wg.work_group_uid %}selected{% endif
+                    %}>{{ wg.group_name }}</option>
                   {% endfor %}
                 </select>
               </div>
@@ -58,17 +61,18 @@
               <div class="form-field">
                 <label for="ticket_type">Тип заявки</label>
                 <select id="ticket_type" name="ticket_type">
-                  <option value="service_request" {% if cat.ticket_type == 'service_request' %}selected{% endif %}>Запрос на обслуживание</option>
-                  <option value="incident" {% if cat.ticket_type == 'incident' %}selected{% endif %}>Инцидент</option>
+                  <option value="service_request" {% if cat.ticket_type=='service_request' %}selected{% endif %}>Запрос
+                    на обслуживание</option>
+                  <option value="incident" {% if cat.ticket_type=='incident' %}selected{% endif %}>Инцидент</option>
                 </select>
               </div>
               <div class="form-field">
                 <label for="priority">Приоритет</label>
                 <select id="priority" name="priority">
-                  <option value="low" {% if cat.priority == 'low' %}selected{% endif %}>Низкий</option>
-                  <option value="medium" {% if cat.priority == 'medium' %}selected{% endif %}>Средний</option>
-                  <option value="high" {% if cat.priority == 'high' %}selected{% endif %}>Высокий</option>
-                  <option value="critical" {% if cat.priority == 'critical' %}selected{% endif %}>Критический</option>
+                  <option value="low" {% if cat.priority=='low' %}selected{% endif %}>Низкий</option>
+                  <option value="medium" {% if cat.priority=='medium' %}selected{% endif %}>Средний</option>
+                  <option value="high" {% if cat.priority=='high' %}selected{% endif %}>Высокий</option>
+                  <option value="critical" {% if cat.priority=='critical' %}selected{% endif %}>Критический</option>
                 </select>
               </div>
               <div class="form-field form-span-2">
@@ -76,7 +80,8 @@
                 <select id="sla_uid" name="sla_uid">
                   <option value="">Без отдельной SLA-политики</option>
                   {% for s in slas %}
-                  <option value="{{ s.sla_uid }}" {% if cat.sla_uid == s.sla_uid %}selected{% endif %}>{{ s.policy_name }}</option>
+                  <option value="{{ s.sla_uid }}" {% if cat.sla_uid==s.sla_uid %}selected{% endif %}>{{ s.policy_name }}
+                  </option>
                   {% endfor %}
                 </select>
               </div>
@@ -88,7 +93,8 @@
                   <strong>Требуется согласование</strong>
                   <p>Включайте, если заявку по этой услуге нельзя запускать без одобрения.</p>
                 </div>
-                <input id="approval_required" type="checkbox" name="approval_required" {% if cat.approval_required %}checked{% endif %}>
+                <input id="approval_required" type="checkbox" name="approval_required" {% if cat.approval_required
+                  %}checked{% endif %}>
               </label>
 
               <label class="toggle-card" for="is_active">

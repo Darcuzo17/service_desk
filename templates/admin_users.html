@@ -12,9 +12,19 @@
   }
 </style>
 <div class="card">
-  <div class="inline" style="justify-content:space-between;"><h2>Пользователи</h2><a class="btn btn-primary" href="{{ url_for('create_user') }}">Создать пользователя</a></div>
+  <div class="inline" style="justify-content:space-between;">
+    <h2>Пользователи</h2><a class="btn btn-primary" href="{{ url_for('create_user') }}">Создать пользователя</a>
+  </div>
   <table class="table">
-    <tr><th>ФИО</th><th>Логин</th><th>Email</th><th>Роль</th><th>Группа</th><th>Статус</th><th>Действия</th></tr>
+    <tr>
+      <th>ФИО</th>
+      <th>Логин</th>
+      <th>Email</th>
+      <th>Роль</th>
+      <th>Группа</th>
+      <th>Статус</th>
+      <th>Действия</th>
+    </tr>
     {% for u in users %}
     {% set wgs = u.all_work_groups() %}
     <tr>
@@ -26,11 +36,13 @@
       <td>{{ 'Деактивирован' if u.is_deactivated else 'Активен' }}</td>
       <td class="actions">
         <a class="btn admin-user-action-btn" href="{{ url_for('edit_user', user_uid=u.user_uid) }}">Редактировать</a>
-        <button class="btn admin-user-action-btn" type="button" onclick="resetPassword('{{ u.user_uid }}')">Сброс пароля</button>
+        <button class="btn admin-user-action-btn" type="button" onclick="resetPassword('{{ u.user_uid }}')">Сброс
+          пароля</button>
         {% if u.user_uid != current_user.user_uid %}
-          <form class="admin-user-action-form" method="POST" action="/admin/delete-user/{{ u.user_uid }}" onsubmit="return confirm('Деактивировать?')">
-            <button class="btn btn-danger admin-user-action-btn" type="submit">Деактивировать</button>
-          </form>
+        <form class="admin-user-action-form" method="POST" action="/admin/delete-user/{{ u.user_uid }}"
+          onsubmit="return confirm('Деактивировать?')">
+          <button class="btn btn-danger admin-user-action-btn" type="submit">Деактивировать</button>
+        </form>
         {% endif %}
       </td>
     </tr>

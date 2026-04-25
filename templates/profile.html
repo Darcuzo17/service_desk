@@ -23,8 +23,18 @@
 <div class="card">
   <h3>Последние заявки</h3>
   <table class="table">
-    <tr><th>Номер</th><th>Тема</th><th>Статус</th><th>Дата</th></tr>
-    {% for t in tickets %}<tr><td>{{ t.ticket_number }}</td><td>{{ t.summary }}</td><td>{{ t.status|status_label }}</td><td>{{ t.created_at|datefmt }}</td></tr>{% endfor %}
+    <tr>
+      <th>Номер</th>
+      <th>Тема</th>
+      <th>Статус</th>
+      <th>Дата</th>
+    </tr>
+    {% for t in tickets %}<tr>
+      <td>{{ t.ticket_number }}</td>
+      <td>{{ t.summary }}</td>
+      <td>{{ t.status|status_label }}</td>
+      <td>{{ t.created_at|datefmt }}</td>
+    </tr>{% endfor %}
   </table>
 </div>
 {% endblock %}

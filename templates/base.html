@@ -36,7 +36,8 @@
           <div id="notif-dropdown" class="hidden">
             <div class="notif-header">
               <span>Уведомления</span>
-              <button id="notif-mark-all" type="button" class="btn btn-primary" onclick="markAllNotificationsRead()">Прочитать всё</button>
+              <button id="notif-mark-all" type="button" class="btn btn-primary"
+                onclick="markAllNotificationsRead()">Прочитать всё</button>
             </div>
             <ul id="notif-list"></ul>
           </div>
@@ -58,7 +59,6 @@
     </div>
     {% endif %}
     {% endwith %}
-
     {% block content %}{% endblock %}
   </div>
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>

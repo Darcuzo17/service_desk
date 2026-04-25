@@ -498,6 +498,7 @@ button:active,
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
+  margin-bottom: 10px;
 }
 
 .actions {
@@ -864,7 +865,7 @@ button:active,
   font-weight: 700;
 }
 
-.catalog-tree-node[open] > .catalog-tree-summary::after {
+.catalog-tree-node[open]>.catalog-tree-summary::after {
   content: "−";
 }
 
