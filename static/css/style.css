@@ -1185,6 +1185,46 @@ button:active,
   padding-right: 4px;
 }
 
+.kanban-service-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kanban-service-group + .kanban-service-group {
+  margin-top: 6px;
+}
+
+.kanban-service-group-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 10px;
+  border: 1px solid rgba(121, 146, 168, 0.16);
+  border-radius: 12px;
+  background: #eef4fa;
+  color: var(--primary-deep);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.kanban-service-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kanban-empty {
+  padding: 14px;
+  border: 1px dashed rgba(121, 146, 168, 0.26);
+  border-radius: 14px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.72);
+  text-align: center;
+}
+
 .ticket-card {
   border: 1px solid rgba(121, 146, 168, 0.18);
   border-radius: 16px;

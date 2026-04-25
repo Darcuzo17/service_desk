@@ -2288,8 +2288,28 @@ def dashboard():
         elif ticket.status == "resolved":
             kanban_data["resolved"].append(ticket)
 
-    # Пока порядок колонок фиксированный, так глазами проще ориентироваться.
-    ordered_kanban_data = kanban_data
+    # Колонки канбана оставляем по статусам, а внутри уже группируем
+    # по родительской услуге, чтобы длинные списки читались спокойнее.
+    ordered_kanban_data = {}
+    for column_key, tickets in kanban_data.items():
+        grouped_tickets = {}
+        for ticket in tickets:
+            if ticket.catalog:
+                parent_catalog = ticket.catalog.parent or ticket.catalog
+                group_uid = parent_catalog.catalog_uid
+                group_title = parent_catalog.catalog_name
+            else:
+                group_uid = "no_catalog"
+                group_title = "Без услуги"
+
+            if group_uid not in grouped_tickets:
+                grouped_tickets[group_uid] = {
+                    "title": group_title,
+                    "tickets": [],
+                }
+            grouped_tickets[group_uid]["tickets"].append(ticket)
+
+        ordered_kanban_data[column_key] = list(grouped_tickets.values())
 
     my_active = (
         base.filter(

@@ -21,27 +21,37 @@
 </div>
 
 <div class="kanban-board">
-  {% for column_key, tickets in kanban_data.items() %}
+  {% for column_key, service_groups in kanban_data.items() %}
   <div class="kanban-column"
     data-status="{% if column_key == 'new_unassigned' %}new{% elif column_key == 'new_assigned' %}assigned{% else %}{{ column_key }}{% endif %}">
     <h3>{{ column_key|column_label }}</h3>
     <div class="kanban-tickets">
-      {% for ticket in tickets %}
-      <div class="ticket-card" data-ticket-uid="{{ ticket.ticket_uid }}" draggable="true">
-        <a href="/ticket/{{ ticket.ticket_uid }}">
-          <div class="ticket-number">{{ ticket.ticket_number }}</div>
-          <div class="ticket-summary">{{ ticket.summary }}</div>
-          <div class="ticket-meta">Автор: {{ ticket.requester.full_name() if ticket.requester else 'Не указан' }}</div>
-          <div class="ticket-meta">Исполнитель: {{ ticket.performer.full_name() if ticket.performer else 'Не назначен'
-            }}</div>
-          <div class="ticket-deadline">Дедлайн: {{ ticket.deadline_at|datefmt if ticket.deadline_at else 'Не установлен'
-            }}</div>
-          {% if ticket.deadline_at and ticket.is_overdue() %}
-          <div class="ticket-overdue">Просрочена на {{ ticket.deadline_at|overdue_for }}</div>
-          {% endif %}
-          <span class="ticket-priority priority-{{ ticket.priority }}">{{ ticket.priority|priority_label }}</span>
-        </a>
-      </div>
+      {% for group in service_groups %}
+      <section class="kanban-service-group">
+        <div class="kanban-service-group-title">{{ group.title }}</div>
+        <div class="kanban-service-group-list">
+          {% for ticket in group.tickets %}
+          <div class="ticket-card" data-ticket-uid="{{ ticket.ticket_uid }}" draggable="true">
+            <a href="/ticket/{{ ticket.ticket_uid }}">
+              <div class="ticket-number">{{ ticket.ticket_number }}</div>
+              <div class="ticket-summary">{{ ticket.summary }}</div>
+              <div class="ticket-meta">Услуга: {{ ticket.catalog.catalog_name if ticket.catalog else 'Не указана' }}</div>
+              <div class="ticket-meta">Автор: {{ ticket.requester.full_name() if ticket.requester else 'Не указан' }}</div>
+              <div class="ticket-meta">Исполнитель: {{ ticket.performer.full_name() if ticket.performer else 'Не назначен'
+                }}</div>
+              <div class="ticket-deadline">Дедлайн: {{ ticket.deadline_at|datefmt if ticket.deadline_at else 'Не установлен'
+                }}</div>
+              {% if ticket.deadline_at and ticket.is_overdue() %}
+              <div class="ticket-overdue">Просрочена на {{ ticket.deadline_at|overdue_for }}</div>
+              {% endif %}
+              <span class="ticket-priority priority-{{ ticket.priority }}">{{ ticket.priority|priority_label }}</span>
+            </a>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+      {% else %}
+      <div class="kanban-empty">Заявок в этой колонке пока нет.</div>
       {% endfor %}
     </div>
   </div>
