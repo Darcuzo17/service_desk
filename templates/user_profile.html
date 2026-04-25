@@ -1,15 +1,110 @@
 {% extends "base.html" %}
 {% block title %}Профиль пользователя{% endblock %}
 {% block content %}
-<div class="card">
-  <h2>{{ user.full_name() }}</h2>
-  <p class="muted">{{ user.role|role_label }}</p>
-  <p>Email: {{ user.email or '—' }}</p>
-  <p>Телефон: {{ user.mobile or user.work_phone or '—' }}</p>
-  <p>Департамент: {{ user.department or '—' }}</p>
-  {% if manager %}<p>Руководитель: <a href="/user/{{ manager.user_uid }}">{{ manager.full_name() }}</a></p>{% endif %}
-  {% if work_groups %}<p>Группы: {% for wg in work_groups %}<span class="badge">{{ wg.group_name }}</span> {% endfor %}
-  </p>{% endif %}
-  <button class="btn" onclick="history.back()">Назад</button>
+<div class="form-page">
+  <div class="card form-shell">
+    <div class="form-shell-header">
+      <div class="form-shell-title">
+        <h2>{{ user.full_name() }}</h2>
+        <p>{{ user.role|role_label }}</p>
+      </div>
+    </div>
+
+    <div class="form-shell-body">
+      <div class="form-sections">
+        <section class="form-section">
+          <div class="form-section-header">
+            <h3>Основные данные</h3>
+          </div>
+          <div class="result-grid">
+            <div class="result-item">
+              <span>Логин</span>
+              <strong>{{ user.user_name or '—' }}</strong>
+            </div>
+            <div class="result-item">
+              <span>Email</span>
+              <strong>{{ user.email or '—' }}</strong>
+            </div>
+            <div class="result-item">
+              <span>Мобильный</span>
+              <strong>{{ user.mobile or '—' }}</strong>
+            </div>
+            <div class="result-item">
+              <span>Рабочий телефон</span>
+              <strong>{{ user.work_phone or '—' }}</strong>
+            </div>
+            <div class="result-item">
+              <span>Пол</span>
+              <strong>{{ 'Женский' if user.gender == 'female' else 'Мужской' if user.gender == 'male' else '—' }}</strong>
+            </div>
+            <div class="result-item">
+              <span>Статус</span>
+              <strong>{{ 'Деактивирован' if user.is_deactivated else 'Активен' }}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <div class="form-section-header">
+            <h3>Рабочая информация</h3>
+          </div>
+          <div class="result-grid">
+            <div class="result-item">
+              <span>Должность</span>
+              <strong>{{ user.title or '—' }}</strong>
+            </div>
+            <div class="result-item">
+              <span>Отдел</span>
+              <strong>{{ user.department or '—' }}</strong>
+            </div>
+            <div class="result-item">
+              <span>Компания</span>
+              <strong>{{ user.company or '—' }}</strong>
+            </div>
+            <div class="result-item">
+              <span>Руководитель</span>
+              <strong>
+                {% if manager %}
+                <a href="/user/{{ manager.user_uid }}">{{ manager.full_name() }}</a>
+                {% else %}
+                —
+                {% endif %}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <div class="form-section-header">
+            <h3>Права и группы</h3>
+          </div>
+          <div class="result-grid">
+            <div class="result-item">
+              <span>Роль</span>
+              <strong>{{ user.role|role_label }}</strong>
+            </div>
+            <div class="result-item">
+              <span>Рабочие группы</span>
+              <strong>
+                {% if work_groups %}
+                  {% for wg in work_groups %}
+                    <span class="badge">{{ wg.group_name }}</span>{% if not loop.last %} {% endif %}
+                  {% endfor %}
+                {% else %}
+                  —
+                {% endif %}
+              </strong>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div class="form-shell-footer">
+        <div class="form-shell-actions">
+          <button class="btn" type="button" onclick="history.back()">Назад</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
