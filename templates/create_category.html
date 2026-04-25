@@ -1,38 +1,103 @@
 {% extends "base.html" %}
-{% block title %}Создать категорию/услугу{% endblock %}
+{% block title %}Создать категорию или услугу{% endblock %}
 {% block content %}
-<div class="card">
-  <h2>Новая запись каталога</h2>
-  <form method="post" class="grid grid-2">
-    <label for="catalog_name">Название каталога:</label><input name="catalog_name" required>
-    <label for="catalog_description">Описание каталога:</label><textarea name="catalog_description"></textarea>
-    <label for="work_group_uid">Рабочая группа:</label><select name="work_group_uid">
-      <option value=""></option>{% for wg in work_groups %}<option value="{{ wg.work_group_uid }}">{{
-        wg.group_name }}</option>{% endfor %}
-    </select>
-    <label for="parent_uid">Родительская категория:</label><select name="parent_uid">
-      <option value=""></option>{% for c in top_cats %}<option value="{{ c.catalog_uid }}">Услуга внутри: {{
-        c.catalog_name }}</option>{% endfor %}
-    </select>
-    <label for="ticket_type">Тип заявки:</label><select name="ticket_type">
-      <option value="service_request">Запрос на обслуживание</option>
-      <option value="incident">Инцидент</option>
-    </select>
-    <label for="priority">Приоритет:</label><select name="priority">
-      <option value="low">Низкий</option>
-      <option value="medium" selected>Средний</option>
-      <option value="high">Высокий</option>
-      <option value="critical">Критический</option>
-    </select>
-    <label for="sla_uid">SLA-политика:</label><select name="sla_uid">
-      <option value=""></option>{% for s in slas %}<option value="{{ s.sla_uid }}">{{ s.policy_name }}
-      </option>{% endfor %}
-    </select>
-    <label> Требует согласования</label><input type="checkbox" name="approval_required">
-    <div></div>
-    <div></div>
-    <div class="actions"><button class="btn btn-primary" type="submit">Сохранить</button><a class="btn"
-        href="{{ url_for('admin_categories') }}">Назад</a></div>
-  </form>
+<div class="form-page">
+  <div class="card form-shell">
+    <div class="form-shell-header">
+      <div class="form-shell-title">
+        <h2>Новая запись каталога</h2>
+      </div>
+    </div>
+
+    <div class="form-shell-body">
+      <form method="post">
+        <div class="form-sections">
+          <section class="form-section">
+            <div class="form-section-header">
+              <h3>Основа записи</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-field form-span-2">
+                <label for="catalog_name">Название</label>
+                <input id="catalog_name" name="catalog_name" required>
+              </div>
+              <div class="form-field form-span-2">
+                <label for="catalog_description">Описание</label>
+                <textarea id="catalog_description" name="catalog_description" class="form-textarea" placeholder="Коротко опишите, что это за услуга или раздел."></textarea>
+              </div>
+              <div class="form-field">
+                <label for="parent_uid">Родительская категория</label>
+                <select id="parent_uid" name="parent_uid">
+                  <option value="">Без родителя, это верхняя категория</option>
+                  {% for c in top_cats %}
+                  <option value="{{ c.catalog_uid }}">{{ c.catalog_name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="work_group_uid">Рабочая группа</label>
+                <select id="work_group_uid" name="work_group_uid">
+                  <option value="">Не выбрана</option>
+                  {% for wg in work_groups %}
+                  <option value="{{ wg.work_group_uid }}">{{ wg.group_name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="form-section-header">
+              <h3>Правила обработки</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="ticket_type">Тип заявки</label>
+                <select id="ticket_type" name="ticket_type">
+                  <option value="service_request">Запрос на обслуживание</option>
+                  <option value="incident">Инцидент</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="priority">Приоритет</label>
+                <select id="priority" name="priority">
+                  <option value="low">Низкий</option>
+                  <option value="medium" selected>Средний</option>
+                  <option value="high">Высокий</option>
+                  <option value="critical">Критический</option>
+                </select>
+              </div>
+              <div class="form-field form-span-2">
+                <label for="sla_uid">SLA-политика</label>
+                <select id="sla_uid" name="sla_uid">
+                  <option value="">Без отдельной SLA-политики</option>
+                  {% for s in slas %}
+                  <option value="{{ s.sla_uid }}">{{ s.policy_name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+            <div class="toggle-grid" style="margin-top: 14px;">
+              <label class="toggle-card" for="approval_required">
+                <div>
+                  <strong>Требуется согласование</strong>
+                  <p>Подходит для затратных, рискованных или просто чувствительных услуг, где нужен дополнительный шаг перед работой.</p>
+                </div>
+                <input id="approval_required" type="checkbox" name="approval_required">
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <div class="form-shell-footer">
+          <div class="form-shell-actions">
+            <button class="btn btn-primary" type="submit">Создать запись</button>
+            <a class="btn" href="{{ url_for('admin_categories') }}">Назад</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 {% endblock %}

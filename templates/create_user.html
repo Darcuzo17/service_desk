@@ -1,45 +1,140 @@
 {% extends "base.html" %}
 {% block title %}Создать пользователя{% endblock %}
 {% block content %}
-<div class="card">
-  <h2>Новый пользователь</h2>
-  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
-  {% if success %}
-  <div class="flash flash-success">Пользователь создан. Логин: <b>{{ temp_login }}</b>, временный пароль: <b>{{
-      temp_password }}</b></div>
-  {% endif %}
-  <form method="post" class="grid grid-2">
-    <label for="last_name">Фамилия:</label><input name="last_name" required>
-    <label for="last_name">Имя:</label><input name="first_name" required>
-    <label for="last_name">Отчество:</label><input name="middle_name" required>
-    <label for="last_name">Email:</label><input type="email" name="email" required>
-    <label for="last_name">Мобильный:</label><input name="mobile" required>
-    <label for="last_name">Рабочий телефон:</label><input name="work_phone" required>
-    <label for="last_name">Должность:</label><input name="title" required>
-    <label for="last_name">Отдел:</label><input name="department" required>
-    <label for="last_name">Компания:</label><input name="company" required>
-    <label for="last_name">Пол:</label><select name="gender">
-      <option value="male">Мужской</option>
-      <option value="female">Женский</option>
-    </select>
-    <label for="last_name">Роль:</label><select name="role">
-      <option value="user">Пользователь</option>
-      <option value="specialist">Специалист</option>
-      <option value="manager">Менеджер</option>
-      <option value="admin">Администратор</option>
-    </select>
-    <label for="last_name">Рабочая группа:</label><select name="work_group_uid">
-      <option value=""></option>{% for wg in work_groups %}<option value="{{ wg.work_group_uid }}">{{
-        wg.group_name }}</option>{% endfor %}
-    </select>
-    <label for="last_name">Руководитель:</label><select name="manager_uid">
-      <option value=""></option>{% for u in all_users %}<option value="{{ u.user_uid }}">{{ u.full_name() }}
-      </option>{% endfor %}
-    </select>
-    <div></div>
-    <div></div>
-    <div class="actions"><button class="btn btn-primary" type="submit">Создать</button><a class="btn"
-        href="{{ url_for('admin_users') }}">Назад</a></div>
-  </form>
+{% set data = form_data|default({}, true) %}
+<div class="form-page">
+  <div class="card form-shell">
+    <div class="form-shell-header">
+      <div class="form-shell-title">
+        <h2>Новый пользователь</h2>
+      </div>
+    </div>
+
+    <div class="form-shell-body">
+      {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+
+      {% if success %}
+      <div class="result-card">
+        <h3>Пользователь создан</h3>
+        <div class="result-grid">
+          <div class="result-item">
+            <span>Логин</span>
+            <strong>{{ temp_login }}</strong>
+          </div>
+          <div class="result-item">
+            <span>Временный пароль</span>
+            <strong>{{ temp_password }}</strong>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <form method="post">
+        <div class="form-sections">
+          <section class="form-section">
+            <div class="form-section-header">
+              <h3>Основные данные</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="last_name">Фамилия</label>
+                <input id="last_name" name="last_name" value="{{ data.get('last_name', '') }}" required>
+              </div>
+              <div class="form-field">
+                <label for="first_name">Имя</label>
+                <input id="first_name" name="first_name" value="{{ data.get('first_name', '') }}" required>
+              </div>
+              <div class="form-field">
+                <label for="middle_name">Отчество</label>
+                <input id="middle_name" name="middle_name" value="{{ data.get('middle_name', '') }}">
+              </div>
+              <div class="form-field">
+                <label for="gender">Пол</label>
+                <select id="gender" name="gender">
+                  <option value="male" {% if data.get('gender') != 'female' %}selected{% endif %}>Мужской</option>
+                  <option value="female" {% if data.get('gender') == 'female' %}selected{% endif %}>Женский</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="email">Email</label>
+                <input id="email" type="email" name="email" value="{{ data.get('email', '') }}" required>
+              </div>
+              <div class="form-field">
+                <label for="mobile">Мобильный</label>
+                <input id="mobile" name="mobile" value="{{ data.get('mobile', '') }}" placeholder="+7...">
+              </div>
+              <div class="form-field">
+                <label for="work_phone">Рабочий телефон</label>
+                <input id="work_phone" name="work_phone" value="{{ data.get('work_phone', '') }}">
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="form-section-header">
+              <h3>Рабочая информация</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="title">Должность</label>
+                <input id="title" name="title" value="{{ data.get('title', '') }}">
+              </div>
+              <div class="form-field">
+                <label for="department">Отдел</label>
+                <input id="department" name="department" value="{{ data.get('department', '') }}">
+              </div>
+              <div class="form-field">
+                <label for="company">Компания</label>
+                <input id="company" name="company" value="{{ data.get('company', '') }}">
+              </div>
+              <div class="form-field">
+                <label for="manager_uid">Руководитель</label>
+                <select id="manager_uid" name="manager_uid">
+                  <option value="">Не указан</option>
+                  {% for u in all_users %}
+                  <option value="{{ u.user_uid }}" {% if data.get('manager_uid') == u.user_uid %}selected{% endif %}>{{ u.full_name() }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="form-section-header">
+              <h3>Права и зона работы</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="role">Роль</label>
+                <select id="role" name="role">
+                  <option value="user" {% if data.get('role', 'user') == 'user' %}selected{% endif %}>Пользователь</option>
+                  <option value="specialist" {% if data.get('role') == 'specialist' %}selected{% endif %}>Специалист</option>
+                  <option value="manager" {% if data.get('role') == 'manager' %}selected{% endif %}>Менеджер</option>
+                  <option value="admin" {% if data.get('role') == 'admin' %}selected{% endif %}>Администратор</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="work_group_uid">Рабочая группа</label>
+                <select id="work_group_uid" name="work_group_uid">
+                  <option value="">Не выбрана</option>
+                  {% for wg in work_groups %}
+                  <option value="{{ wg.work_group_uid }}" {% if data.get('work_group_uid') == wg.work_group_uid %}selected{% endif %}>{{ wg.group_name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="form-shell-footer">
+          <p>После сохранения система сама создаст логин и временный пароль для первого входа.</p>
+          <div class="form-shell-actions">
+            <button class="btn btn-primary" type="submit">Создать пользователя</button>
+            <a class="btn" href="{{ url_for('admin_users') }}">Назад</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 {% endblock %}

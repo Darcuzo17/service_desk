@@ -1,37 +1,132 @@
 {% extends "base.html" %}
 {% block title %}Редактировать пользователя{% endblock %}
 {% block content %}
-<div class="card">
-  <h2>Редактировать пользователя</h2>
-  <form method="post" class="grid grid-2">
-    <label for="last_name">Фамилия:</label><input name="last_name" value="{{ user.last_name }}" required>
-    <label for="last_name">Имя:</label><input name="first_name" value="{{ user.first_name }}" required>
-    <label for="last_name">Отчество:</label><input name="middle_name" value="{{ user.middel_name or '' }}">
-    <label for="last_name">Email:</label><input type="email" name="email" value="{{ user.email or '' }}" required>
-    <label for="last_name">Мобильный:</label><input name="mobile" value="{{ user.mobile or '' }}" d>
-    <label for="last_name">Рабочий телефон:</label><input name="work_phone" value="{{ user.work_phone or '' }}">
-    <label for="last_name">Должность:</label><input name="title" value="{{ user.title or '' }}">
-    <label for="last_name">Отдел:</label><input name="department" value="{{ user.department or '' }}">
-    <label for="last_name">Компания:</label><input name="company" value="{{ user.company or '' }}">
-    <label for="role">Роль:</label><select name="role">
-      <option value="user" {% if user.role=='user' %}selected{% endif %}>Пользователь</option>
-      <option value="specialist" {% if user.role=='specialist' %}selected{% endif %}>Специалист</option>
-      <option value="manager" {% if user.role=='manager' %}selected{% endif %}>Менеджер</option>
-      <option value="admin" {% if user.role=='admin' %}selected{% endif %}>Администратор</option>
-    </select>
-    <label for="work_group_uid">Рабочая группа:</label><select name="work_group_uid">
-      <option value=""></option>{% for wg in work_groups %}<option value="{{ wg.work_group_uid }}">{{
-        wg.group_name }}</option>{% endfor %}
-    </select>
-    <label for="manager_uid">Руководитель:</label><select name="manager_uid">
-      <option value=""></option>{% for u in all_users %}<option value="{{ u.user_uid }}" {% if
-        user.manager_uid==u.user_uid %}selected{% endif %}>{{ u.full_name() }}</option>{% endfor %}
-    </select>
-    <label>Деактивирован</label> <input type="checkbox" name="is_deactivated" {% if user.is_deactivated %}checked{% endif %}>
-    <div></div>
-    <div></div>
-    <div class="actions"><button class="btn btn-primary" type="submit">Сохранить</button><a class="btn"
-        href="{{ url_for('admin_users') }}">Назад</a></div>
-  </form>
+{% set current_work_groups = user.all_work_groups() %}
+<div class="form-page">
+  <div class="card form-shell">
+    <div class="form-shell-header">
+      <div class="form-shell-title">
+        <h2>Редактирование профиля</h2>
+      </div>
+      <div class="form-shell-meta">
+        <span class="badge">{{ user.role|role_label }}</span>
+        <span class="badge">{{ 'Деактивирован' if user.is_deactivated else 'Активен' }}</span>
+      </div>
+    </div>
+
+    <div class="form-shell-body">
+      <form method="post">
+        <div class="form-sections">
+          <section class="form-section">
+            <div class="form-section-header">
+              <h3>Личные данные</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-field form-span-2">
+                <label>Логин</label>
+                <div class="form-input-static">{{ user.user_name }}</div>
+              </div>
+              <div class="form-field">
+                <label for="last_name">Фамилия</label>
+                <input id="last_name" name="last_name" value="{{ user.last_name }}" required>
+              </div>
+              <div class="form-field">
+                <label for="first_name">Имя</label>
+                <input id="first_name" name="first_name" value="{{ user.first_name }}" required>
+              </div>
+              <div class="form-field">
+                <label for="middle_name">Отчество</label>
+                <input id="middle_name" name="middle_name" value="{{ user.middel_name or '' }}">
+              </div>
+              <div class="form-field">
+                <label for="email">Email</label>
+                <input id="email" type="email" name="email" value="{{ user.email or '' }}" required>
+              </div>
+              <div class="form-field">
+                <label for="mobile">Мобильный</label>
+                <input id="mobile" name="mobile" value="{{ user.mobile or '' }}">
+              </div>
+              <div class="form-field">
+                <label for="work_phone">Рабочий телефон</label>
+                <input id="work_phone" name="work_phone" value="{{ user.work_phone or '' }}">
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="form-section-header">
+              <h3>Организационные данные</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="title">Должность</label>
+                <input id="title" name="title" value="{{ user.title or '' }}">
+              </div>
+              <div class="form-field">
+                <label for="department">Отдел</label>
+                <input id="department" name="department" value="{{ user.department or '' }}">
+              </div>
+              <div class="form-field">
+                <label for="company">Компания</label>
+                <input id="company" name="company" value="{{ user.company or '' }}">
+              </div>
+              <div class="form-field">
+                <label for="manager_uid">Руководитель</label>
+                <select id="manager_uid" name="manager_uid">
+                  <option value="">Не указан</option>
+                  {% for u in all_users %}
+                  <option value="{{ u.user_uid }}" {% if user.manager_uid == u.user_uid %}selected{% endif %}>{{ u.full_name() }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section class="form-section">
+            <div class="form-section-header">
+              <h3>Права и состояние</h3>
+            </div>
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="role">Роль</label>
+                <select id="role" name="role">
+                  <option value="user" {% if user.role == 'user' %}selected{% endif %}>Пользователь</option>
+                  <option value="specialist" {% if user.role == 'specialist' %}selected{% endif %}>Специалист</option>
+                  <option value="manager" {% if user.role == 'manager' %}selected{% endif %}>Менеджер</option>
+                  <option value="admin" {% if user.role == 'admin' %}selected{% endif %}>Администратор</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="work_group_uid">Рабочая группа</label>
+                <select id="work_group_uid" name="work_group_uid">
+                  <option value="">Не выбрана</option>
+                  {% for wg in work_groups %}
+                  <option value="{{ wg.work_group_uid }}" {% if current_work_groups and current_work_groups[0].work_group_uid == wg.work_group_uid %}selected{% endif %}>{{ wg.group_name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+            <div class="toggle-grid" style="margin-top: 14px;">
+              <label class="toggle-card" for="is_deactivated">
+                <div>
+                  <strong>Деактивировать пользователя</strong>
+                  <p>Если включить, человек не сможет нормально пользоваться системой, но карточка и история останутся.</p>
+                </div>
+                <input id="is_deactivated" type="checkbox" name="is_deactivated" {% if user.is_deactivated %}checked{% endif %}>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <div class="form-shell-footer">
+          <div class="form-shell-actions">
+            <button class="btn btn-primary" type="submit">Сохранить изменения</button>
+            <a class="btn" href="{{ url_for('admin_users') }}">Назад</a>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 {% endblock %}
