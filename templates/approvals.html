@@ -7,7 +7,6 @@
     <h1 class="page-title"><i data-feather="check-square"></i> Согласования</h1>
   </div>
 
-  <!-- Tabs -->
   <div class="view-switcher" style="margin-bottom:24px">
     {% if to_approve %}
     <button class="view-tab active" data-tab="to_approve" onclick="switchTab('to_approve')">
@@ -19,13 +18,16 @@
       <i data-feather="alert-circle"></i> Требует решения
     </button>
     {% endif %}
+
     <button class="view-tab" data-tab="waiting" onclick="switchTab('waiting')">
       <i data-feather="clock"></i> Мои заявки
       {% if waiting %}<span class="count-badge" style="margin-left:4px">{{ waiting|length }}</span>{% endif %}
     </button>
+
     <button class="view-tab" data-tab="history" onclick="switchTab('history')">
       <i data-feather="archive"></i> История
     </button>
+
     {% if all_approvals is not none %}
     <button class="view-tab" data-tab="all" onclick="switchTab('all')">
       <i data-feather="list"></i> Все согласования
@@ -33,14 +35,13 @@
     {% endif %}
   </div>
 
-  <!-- Tab: Требует решения (approver view) -->
   <div id="tab-to_approve" class="appr-tab">
     {% if to_approve %}
     <div class="appr-list">
       {% for a in to_approve %}
       <div class="appr-card">
         <div class="appr-card-header">
-          <span class="appr-step-label">{{ a.step_name or 'Согласование' }}</span>
+          <span class="appr-step-label">{{ a.step_name|approval_step_label or 'Согласование' }}</span>
           <span class="status-badge status-pending_approval">Ожидает решения</span>
         </div>
         <div class="appr-card-body">
@@ -49,8 +50,8 @@
             <span class="appr-ticket-summary">{{ a.ticket.summary if a.ticket else '—' }}</span>
           </div>
           <div class="appr-meta">
-            <span><i data-feather="user"></i> {{ a.ticket.requester.full_name() if a.ticket and a.ticket.requester else
-              '—' }}</span>
+            <span><i data-feather="user"></i> {{ a.ticket.requester.full_name() if a.ticket and a.ticket.requester else '—' }}</span>
+            <span><i data-feather="check-square"></i> {{ a.approver.full_name() if a.approver else '—' }}</span>
             <span><i data-feather="calendar"></i> {{ a.create_date|datefmt }}</span>
           </div>
         </div>
@@ -79,20 +80,32 @@
     {% endif %}
   </div>
 
-  <!-- Tab: Мои заявки на согласовании (requester view) -->
   <div id="tab-waiting" class="appr-tab" style="display:none">
     {% if waiting %}
-    <div class="ticket-list-compact">
-      {% for t in waiting %}
-      <div class="ticket-row" onclick="openTicket('{{ t.ticket_uid }}')">
-        <span class="ticket-row-num">{{ t.ticket_number }}</span>
-        <span class="ticket-row-summary">{{ t.summary }}</span>
-        <span class="ticket-row-cat">{{ t.catalog.catalog_name if t.catalog else '—' }}</span>
-        <span class="status-badge status-{{ t.status }}">{{ t.status|status_label }}</span>
-        <span class="ticket-row-date">{{ t.created_at|datefmt }}</span>
-      </div>
-      {% endfor %}
-    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>Заявка</th>
+          <th>Тема</th>
+          <th>Услуга</th>
+          <th>Согласующий</th>
+          <th>Статус</th>
+          <th>Дата</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in waiting %}
+        <tr class="clickable-row" onclick="openTicket('{{ t.ticket_uid }}')">
+          <td><span class="ticket-num-sm">{{ t.ticket_number }}</span></td>
+          <td>{{ t.summary }}</td>
+          <td>{{ t.catalog.catalog_name if t.catalog else '—' }}</td>
+          <td>{{ waiting_approvers.get(t.ticket_uid, '—') }}</td>
+          <td><span class="status-badge status-{{ t.status }}">{{ t.status|status_label }}</span></td>
+          <td class="text-muted-sm">{{ t.created_at|datefmt }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
     {% else %}
     <div class="empty-state">
       <i data-feather="clock"></i>
@@ -101,7 +114,6 @@
     {% endif %}
   </div>
 
-  <!-- Tab: История -->
   <div id="tab-history" class="appr-tab" style="display:none">
     {% if my_history %}
     <table class="data-table">
@@ -110,6 +122,7 @@
           <th>Заявка</th>
           <th>Тема</th>
           <th>Шаг</th>
+          <th>Согласующий</th>
           <th>Решение</th>
           <th>Комментарий</th>
           <th>Дата</th>
@@ -120,10 +133,10 @@
         <tr class="clickable-row" onclick="openTicket('{{ a.ticket_uid }}')">
           <td><span class="ticket-num-sm">{{ a.ticket.ticket_number if a.ticket else '—' }}</span></td>
           <td>{{ a.ticket.summary if a.ticket else '—' }}</td>
-          <td>{{ a.step_name or '—' }}</td>
+          <td>{{ a.step_name|approval_step_label or '—' }}</td>
+          <td>{{ a.approver.full_name() if a.approver else '—' }}</td>
           <td>
-            <span
-              class="status-badge {% if a.status == 'approved' %}status-approved{% else %}status-rejected{% endif %}">
+            <span class="status-badge {% if a.status == 'approved' %}status-approved{% else %}status-rejected{% endif %}">
               {{ 'Согласовано' if a.status == 'approved' else 'Отклонено' }}
             </span>
           </td>
@@ -141,7 +154,6 @@
     {% endif %}
   </div>
 
-  <!-- Tab: Все согласования (admin only) -->
   {% if all_approvals is not none %}
   <div id="tab-all" class="appr-tab" style="display:none">
     {% if all_approvals %}
@@ -162,7 +174,7 @@
         <tr class="clickable-row" onclick="openTicket('{{ a.ticket_uid }}')">
           <td><span class="ticket-num-sm">{{ a.ticket.ticket_number if a.ticket else '—' }}</span></td>
           <td>{{ a.ticket.summary if a.ticket else '—' }}</td>
-          <td>{{ a.step_name or '—' }}</td>
+          <td>{{ a.step_name|approval_step_label or '—' }}</td>
           <td>{{ a.approver.full_name() if a.approver else '—' }}</td>
           <td>
             <span class="status-badge
@@ -193,6 +205,11 @@
 
 {% block scripts %}
 <script>
+  function openTicket(ticketUid) {
+    if (!ticketUid) return;
+    window.location.href = `/ticket/${ticketUid}`;
+  }
+
   function switchTab(name) {
     document.querySelectorAll('.appr-tab').forEach(t => t.style.display = 'none');
     document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active'));
@@ -200,7 +217,6 @@
     document.querySelector(`[data-tab="${name}"]`).classList.add('active');
   }
 
-  // Open default tab
   document.addEventListener('DOMContentLoaded', function () {
     {% if to_approve %}
     switchTab('to_approve');
@@ -226,7 +242,9 @@
       } else {
         showToast(d.error || 'Ошибка', 'error');
       }
-    } catch (e) { showToast('Ошибка сети', 'error'); }
+    } catch (e) {
+      showToast('Ошибка сети', 'error');
+    }
   }
 </script>
 {% endblock %}

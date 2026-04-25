@@ -897,7 +897,7 @@ def create_approval_chain(ticket, catalog, requester):
             TicketApproval(
                 ticket_uid=ticket.ticket_uid,
                 step_order=1,
-                step_name="Manager Approval",
+                step_name="Согласование руководителем",
                 approver_uid=approver_uid,
                 status="pending",
             )

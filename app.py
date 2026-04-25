@@ -118,6 +118,9 @@ PRIORITY_LABELS = {
     "high": "Высокий",
     "critical": "Критический",
 }
+APPROVAL_STEP_LABELS = {
+    "Manager Approval": "Согласование руководителем",
+}
 # ============================================================
 # HELPERS
 # ============================================================
@@ -226,6 +229,11 @@ def priority_label_filter(priority_code):
 @app.template_filter("role_label")
 def role_label_filter(role_code):
     return ROLE_LABELS.get(role_code, role_code)
+
+
+@app.template_filter("approval_step_label")
+def approval_step_label_filter(step_name):
+    return APPROVAL_STEP_LABELS.get(step_name, step_name)
 
 
 @app.template_filter("datefmt")
@@ -1006,12 +1014,32 @@ def approvals():
         .order_by(Ticket.created_at.desc())
         .all()
     )
+    waiting_approvers = {}
+    if waiting:
+        waiting_ticket_uids = [ticket.ticket_uid for ticket in waiting]
+        pending_waiting_approvals = (
+            TicketApproval.query.filter(
+                TicketApproval.ticket_uid.in_(waiting_ticket_uids),
+                TicketApproval.status == "pending",
+            )
+            .order_by(TicketApproval.ticket_uid, TicketApproval.step_order)
+            .all()
+        )
+        for approval in pending_waiting_approvals:
+            waiting_approvers.setdefault(
+                approval.ticket_uid,
+                approval.approver.full_name() if approval.approver else "—",
+            )
 
-    # History: approvals decided by current user
+    # History: approvals relevant to the current user
     my_history = (
-        TicketApproval.query.filter(
-            TicketApproval.approver_uid == current_user.user_uid,
+        TicketApproval.query.join(Ticket, Ticket.ticket_uid == TicketApproval.ticket_uid)
+        .filter(
             TicketApproval.status.in_(["approved", "rejected"]),
+            db.or_(
+                TicketApproval.approver_uid == current_user.user_uid,
+                Ticket.requester_uid == current_user.user_uid,
+            ),
         )
         .order_by(TicketApproval.decided_at.desc())
         .limit(50)
@@ -1031,6 +1059,7 @@ def approvals():
         "approvals.html",
         to_approve=to_approve,
         waiting=waiting,
+        waiting_approvers=waiting_approvers,
         my_history=my_history,
         all_approvals=all_approvals,
     )
@@ -1396,7 +1425,7 @@ def get_ticket(ticket_uid):
     approvals = [
         {
             "uid": a.approval_uid,
-            "step": a.step_name or f"Шаг {a.step_order}",
+            "step": approval_step_label_filter(a.step_name) or f"Шаг {a.step_order}",
             "approver": a.approver.full_name() if a.approver else "Руководитель",
             "approver_uid": a.approver_uid,
             "status": a.status,
