@@ -110,8 +110,8 @@ TASK_QUEUE_FILTERS = {"all", "my", "overdue"}
 CLOSED_TICKET_STATUSES = {"resolved", "closed", "cancelled"}
 ROLE_LABELS = {
     "user": "Пользователь",
-    "specialist": "Task Executor",
-    "manager": "Manager (Supervisor)",
+    "specialist": "Специалист",
+    "manager": "Менеджер",
     "admin": "Администратор",
 }
 PRIORITY_LABELS = {
@@ -236,6 +236,24 @@ def _apply_ticket_status_dates(ticket, new_status, changed_at=None):
     elif new_status in {"cancelled", "rejected"}:
         ticket.resolved_at = None
         ticket.closed_at = None
+
+
+def _assign_current_user_on_take(ticket, new_status, changed_at=None):
+    """Если специалист сам переводит свободную заявку в работу, сразу делаем его исполнителем."""
+    if new_status != "in_progress" or ticket.performer_uid is not None:
+        return False
+    if not is_specialist():
+        return False
+    ticket.performer_uid = current_user.user_uid
+    add_ticket_history(
+        ticket.ticket_uid,
+        "performer",
+        None,
+        current_user.user_uid,
+        current_user.user_uid,
+    )
+    _mark_ticket_responded(ticket, changed_at)
+    return True
 
 
 # ============================================================
@@ -1595,6 +1613,7 @@ def update_ticket_form(ticket_uid):
             ticket_uid, "status", ticket.status, new_status, current_user.user_uid
         )
         ticket.status = new_status
+        _assign_current_user_on_take(ticket, new_status, now)
         _apply_ticket_status_dates(ticket, new_status, now)
     if "performer_uid" in request.form and new_performer != ticket.performer_uid:
         add_ticket_history(
@@ -1772,6 +1791,7 @@ def update_ticket(ticket_uid):
             ticket_uid, "status", old_st, new_status, current_user.user_uid
         )
         ticket.status = new_status
+        _assign_current_user_on_take(ticket, new_status, now)
         _apply_ticket_status_dates(ticket, new_status, now)
         notify_ticket_update(
             ticket,
@@ -1933,6 +1953,8 @@ def api_ticket_status(ticket_uid):
     elif new_status == "assigned":
         if ticket.performer_uid is None:
             ticket.performer_uid = current_user.user_uid
+    else:
+        _assign_current_user_on_take(ticket, new_status, change_time)
     _apply_ticket_status_dates(ticket, new_status, change_time)
     add_ticket_history(
         ticket.ticket_uid, "status", old_status, new_status, current_user.user_uid
@@ -2238,13 +2260,6 @@ def dashboard():
     )
     if my_wg_uids:
         base = base.filter(ServiceCatalog.work_group_uid.in_(my_wg_uids))
-    if current_user.role != "admin":
-        base = base.filter(
-            db.or_(
-                Ticket.requester_uid == None,
-                Ticket.requester_uid == current_user.user_uid,
-            )
-        )
 
     # На дашборде держим только живые заявки.
     # Закрытые и отменённые тут уже просто шумят.
