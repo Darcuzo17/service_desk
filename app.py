@@ -2040,6 +2040,13 @@ def dashboard():
     )
     if my_wg_uids:
         base = base.filter(ServiceCatalog.work_group_uid.in_(my_wg_uids))
+    if current_user.role != "admin":
+        base = base.filter(
+            db.or_(
+                Ticket.requester_uid == None,
+                Ticket.requester_uid == current_user.user_uid,
+            )
+        )
 
     # Получаем все заявки специалиста, кроме полностью закрытых
     all_tickets = (
@@ -2085,16 +2092,12 @@ def dashboard():
         .all()
     )
 
-    overdue_list = [
-        t
-        for t in base.filter(
-            Ticket.deadline_at != None,
-            Ticket.deadline_at < datetime.utcnow(),
-        )
-        .order_by(Ticket.deadline_at)
-        .limit(20)
-        .all()
-    ]
+    overdue_query = base.filter(
+        Ticket.deadline_at != None,
+        Ticket.deadline_at < datetime.utcnow(),
+        ~Ticket.status.in_(CLOSED_TICKET_STATUSES),
+    )
+    overdue_list = overdue_query.order_by(Ticket.deadline_at).limit(20).all()
 
     pending_approval = []
     if current_user.role in ("admin", "manager"):
@@ -2109,7 +2112,7 @@ def dashboard():
     stats = {
         "my_active": len(my_active),
         "all_new": len(kanban_data["new_unassigned"]),
-        "overdue": len(overdue_list),
+        "overdue": overdue_query.count(),
         "pending_approval": len(pending_approval),
     }
 
