@@ -43,9 +43,9 @@
     </div>
   </div>
 
-  <div id="create-modal" class="modal hidden" style="padding:16px;">
-    <div class="card home-create-modal" style="width:100%;max-width:700px;">
-      <div class="inline" style="justify-content:space-between;">
+  <div id="create-modal" class="modal modal-pad-sm hidden">
+    <div class="card home-create-modal modal-card-wide">
+      <div class="inline inline-between">
         <h3>Новая заявка</h3>
         <button class="btn" type="button" onclick="closeModal('create-modal')">Закрыть</button>
       </div>
@@ -71,11 +71,11 @@
             <input name="summary" type="text" placeholder="Кратко опишите проблему" required>
           </div>
         </div>
-        <div style="margin-top:10px;">
+        <div class="mt-sm">
           <label>Описание</label>
           <textarea name="description" rows="4" required></textarea>
         </div>
-        <div class="actions" style="margin-top:10px;">
+        <div class="actions mt-sm">
           <button class="btn btn-primary" type="submit">Отправить</button>
         </div>
       </form>

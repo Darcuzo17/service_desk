@@ -2,7 +2,7 @@
 {% block title %}Каталог{% endblock %}
 {% block content %}
 <div class="card">
-  <div class="inline" style="justify-content:space-between;">
+  <div class="inline inline-between">
     <h2>Каталог услуг</h2><a class="btn btn-primary" href="{{ url_for('create_category') }}">Добавить</a>
   </div>
   <table class="table">
@@ -24,7 +24,8 @@
       <td>
         <a class="btn" href="{{ url_for('edit_category', cat_uid=cat.catalog_uid) }}">Редактировать</a>
         <form method="POST" action="/admin/delete-category/{{ cat.catalog_uid }}"
-          onsubmit="return confirm('Деактивировать категорию/услугу?')" style="display:inline-block;">
+          class="inline-form"
+          onsubmit="return confirm('Деактивировать категорию/услугу?')">
           <button class="btn btn-danger" type="submit">Деактивировать</button>
         </form>
       </td>
@@ -39,7 +40,8 @@
       <td>
         <a class="btn" href="{{ url_for('edit_category', cat_uid=svc.catalog_uid) }}">Редактировать</a>
         <form method="POST" action="/admin/delete-category/{{ svc.catalog_uid }}"
-          onsubmit="return confirm('Деактивировать категорию/услугу?')" style="display:inline-block;">
+          class="inline-form"
+          onsubmit="return confirm('Деактивировать категорию/услугу?')">
           <button class="btn btn-danger" type="submit">Деактивировать</button>
         </form>
       </td>

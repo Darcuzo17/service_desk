@@ -7,11 +7,11 @@
     <h1 class="page-title"><i data-feather="check-square"></i> Согласования</h1>
   </div>
 
-  <div class="view-switcher" style="margin-bottom:24px">
+  <div class="view-switcher view-switcher-spaced">
     {% if to_approve %}
     <button class="view-tab active" data-tab="to_approve" onclick="switchTab('to_approve')">
       <i data-feather="alert-circle"></i> Требует решения
-      <span class="count-badge" style="margin-left:4px">{{ to_approve|length }}</span>
+      <span class="count-badge count-badge-offset">{{ to_approve|length }}</span>
     </button>
     {% else %}
     <button class="view-tab" data-tab="to_approve" onclick="switchTab('to_approve')">
@@ -21,7 +21,7 @@
 
     <button class="view-tab" data-tab="waiting" onclick="switchTab('waiting')">
       <i data-feather="clock"></i> Мои заявки
-      {% if waiting %}<span class="count-badge" style="margin-left:4px">{{ waiting|length }}</span>{% endif %}
+      {% if waiting %}<span class="count-badge count-badge-offset">{{ waiting|length }}</span>{% endif %}
     </button>
 
     <button class="view-tab" data-tab="history" onclick="switchTab('history')">
@@ -80,7 +80,7 @@
     {% endif %}
   </div>
 
-  <div id="tab-waiting" class="appr-tab" style="display:none">
+  <div id="tab-waiting" class="appr-tab appr-tab-hidden">
     {% if waiting %}
     <table class="data-table">
       <thead>
@@ -114,7 +114,7 @@
     {% endif %}
   </div>
 
-  <div id="tab-history" class="appr-tab" style="display:none">
+  <div id="tab-history" class="appr-tab appr-tab-hidden">
     {% if my_history %}
     <table class="data-table">
       <thead>
@@ -155,7 +155,7 @@
   </div>
 
   {% if all_approvals is not none %}
-  <div id="tab-all" class="appr-tab" style="display:none">
+  <div id="tab-all" class="appr-tab appr-tab-hidden">
     {% if all_approvals %}
     <table class="data-table">
       <thead>
