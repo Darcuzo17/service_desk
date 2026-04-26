@@ -1449,6 +1449,11 @@ def ticket_detail(ticket_uid):
         .order_by(TicketParamValue.create_date)
         .all()
     )
+    history_entries = ticket.history.order_by(TicketHistory.changed_date.desc()).all()
+    approval_entries = (
+        ticket.approvals.order_by(TicketApproval.step_order, TicketApproval.create_date)
+        .all()
+    )
     pending_approvals = (
         ticket.approvals.filter_by(status="pending")
         .order_by(TicketApproval.step_order)
@@ -1471,6 +1476,8 @@ def ticket_detail(ticket_uid):
         ticket=ticket,
         specialists=specialists,
         comments=comments,
+        history_entries=history_entries,
+        approval_entries=approval_entries,
         pending_approvals=pending_approvals,
         my_pending_approval=my_pending_approval,
         can_update_ticket=can_update_ticket,

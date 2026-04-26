@@ -1,103 +1,381 @@
 {% extends "base.html" %}
 {% block title %}{{ ticket.ticket_number }}{% endblock %}
 {% block content %}
-<div class="card">
-  <h2>{{ ticket.ticket_number }} — {{ ticket.summary }}</h2>
-  <p>{{ ticket.description }}</p>
-  <p>
-    <span class="badge">{{ ticket.status|status_label }}</span>
-    <span class="badge">{{ ticket.priority|priority_label }}</span>
-    <span class="muted">Создана: {{ ticket.created_at|datefmt }}</span>
-  </p>
-  <p><strong>Автор:</strong> {{ ticket.requester.full_name() if ticket.requester else '—' }}</p>
-  <p><strong>Исполнитель:</strong> {{ ticket.performer.full_name() if ticket.performer else 'не назначен' }}</p>
-</div>
-
-{% if ticket.status == 'pending_approval' %}
-<div class="card">
-  <h3>Согласование</h3>
-
-  {% if pending_approvals %}
-  <p class="muted">Сейчас заявка ждёт решение по следующим шагам:</p>
-  {% for approval in pending_approvals %}
-  <p>
-    <strong>{{ approval.step_name|approval_step_label or ('Шаг ' ~ approval.step_order) }}</strong><br>
-    Согласующий: {{ approval.approver.full_name() if approval.approver else 'не указан' }}
-  </p>
-  {% endfor %}
-  {% else %}
-  <p class="muted">Активных шагов согласования сейчас нет.</p>
-  {% endif %}
-
-  {% if my_pending_approval %}
-  <form method="POST" action="/ticket/{{ ticket.ticket_uid }}/approve" style="margin-top:12px;">
-    <input type="hidden" name="approval_uid" value="{{ my_pending_approval.approval_uid }}">
-
-    <label>Комментарий к решению</label>
-    <textarea name="comment" rows="3" placeholder="Если нужно, можно оставить короткий комментарий"
-      style="width:100%;"></textarea>
-
-    <div class="actions" style="margin-top:10px;">
-      <button class="btn btn-success" type="submit" name="decision" value="approved">Согласовать</button>
-      <button class="btn btn-danger" type="submit" name="decision" value="rejected">Отклонить</button>
-    </div>
-  </form>
-  {% else %}
-  <p class="muted" style="margin-top:12px;">
-    Обычное обновление заявки сейчас отключено, потому что она на согласовании.
-    Решение может принять только текущий согласующий.
-  </p>
-  {% endif %}
-</div>
-{% endif %}
-
-<div class="card">
-  <h3>Комментарии</h3>
-  {% for c in comments %}
-  <p><strong>{{ c.author_rel.full_name() if c.author_rel else '—' }}</strong> <span class="muted">{{
-      c.create_date|datefmt }}</span><br>{{ c.param_value }}</p>
-  {% else %}
-  <p class="muted">Комментариев пока нет.</p>
-  {% endfor %}
-
-  <form method="POST" action="/ticket/{{ ticket.ticket_uid }}/add_comment" style="margin-top:12px;">
-    <label>Добавить комментарий</label>
-    <textarea name="text" rows="3" placeholder="Напишите комментарий..." required style="width:100%;"></textarea>
-    <div class="actions" style="margin-top:8px;">
-      <button class="btn btn-primary" type="submit">Отправить</button>
-    </div>
-  </form>
-</div>
-
-{% if can_update_ticket %}
-<div class="card">
-  <h3>Обновить заявку</h3>
-  <form method="POST" action="/ticket/{{ ticket.ticket_uid }}/update">
-    <div class="grid grid-2">
-      <div>
-        <label>Статус</label>
-        <select name="status">
-          <option value="new" {% if ticket.status=='new' %}selected{% endif %}>Новая</option>
-          <option value="in_progress" {% if ticket.status=='in_progress' %}selected{% endif %}>В работе</option>
-          <option value="resolved" {% if ticket.status=='resolved' %}selected{% endif %}>Решена</option>
-          <option value="cancelled" {% if ticket.status=='cancelled' %}selected{% endif %}>Отменена</option>
-        </select>
+{% set field_labels = {
+  'status': 'Статус',
+  'performer': 'Исполнитель',
+  'summary': 'Тема',
+  'description': 'Описание',
+  'priority': 'Приоритет',
+  'catalog_uid': 'Услуга',
+  'requester_uid': 'Автор',
+  'recipient_uid': 'Получатель'
+} %}
+<div class="ticket-page">
+  <section class="card ticket-hero">
+    <div class="ticket-hero-top">
+      <a class="ticket-back-link" href="javascript:history.back()">&larr; Назад</a>
+      <div class="ticket-hero-badges">
+        <span class="badge">{{ ticket.ticket_number }}</span>
+        <span class="status-badge status-{{ ticket.status }}">{{ ticket.status|status_label }}</span>
+        <span class="ticket-priority priority-{{ ticket.priority }}">{{ ticket.priority|priority_label }}</span>
+        {% if ticket.status == 'pending_approval' %}
+        <span class="badge">На согласовании</span>
+        {% endif %}
       </div>
-      {% if current_user.role in ('manager', 'admin') %}
-      <div>
-        <label>Исполнитель</label>
-        <select name="performer_uid">
-          <option value="">не назначен</option>
-          {% for s in specialists %}
-          <option value="{{ s.user_uid }}" {% if ticket.performer_uid==s.user_uid %}selected{% endif %}>{{ s.full_name()
-            }}</option>
+    </div>
+
+    <div class="ticket-hero-grid">
+      <div class="ticket-hero-copy">
+        <div class="form-shell-kicker">Карточка заявки</div>
+        <h1>{{ ticket.summary }}</h1>
+        <p class="ticket-hero-description">
+          {{ ticket.description if ticket.description else 'Описание по заявке пока не заполнено.' }}
+        </p>
+
+        <div class="ticket-kpis">
+          <div class="ticket-kpi">
+            <span>Услуга</span>
+            <strong>{{ ticket.catalog.catalog_name if ticket.catalog else 'Не указана' }}</strong>
+            <small>
+              {% if ticket.catalog and ticket.catalog.parent %}
+              Раздел: {{ ticket.catalog.parent.catalog_name }}
+              {% else %}
+              Родительская услуга не задана
+              {% endif %}
+            </small>
+          </div>
+          <div class="ticket-kpi">
+            <span>Автор</span>
+            <strong>{{ ticket.requester.full_name() if ticket.requester else 'Не указан' }}</strong>
+            <small>
+              {% if ticket.recipient and ticket.recipient_uid != ticket.requester_uid %}
+              Получатель: {{ ticket.recipient.full_name() }}
+              {% else %}
+              Заявка оформлена на автора
+              {% endif %}
+            </small>
+          </div>
+          <div class="ticket-kpi">
+            <span>Исполнитель</span>
+            <strong>{{ ticket.performer.full_name() if ticket.performer else 'Не назначен' }}</strong>
+            <small>
+              {% if ticket.performer %}
+              Сейчас заявка уже в работе у конкретного человека
+              {% else %}
+              Свободная заявка, можно забрать в работу
+              {% endif %}
+            </small>
+          </div>
+          <div class="ticket-kpi">
+            <span>Срок решения</span>
+            <strong>{{ ticket.deadline_at|datefmt if ticket.deadline_at else 'Не установлен' }}</strong>
+            <small>
+              {% if ticket.deadline_at and ticket.is_overdue() %}
+              Просрочена на {{ ticket.deadline_at|overdue_for }}
+              {% elif ticket.deadline_at %}
+              Пока идёт в рамках SLA
+              {% else %}
+              SLA по решению пока не стартовал
+              {% endif %}
+            </small>
+          </div>
+        </div>
+      </div>
+
+      <aside class="ticket-hero-side">
+        <div class="ticket-highlight">
+          <span class="ticket-highlight-label">Текущее состояние</span>
+          <strong>{{ ticket.status|status_label }}</strong>
+          <p>
+            {% if ticket.status == 'pending_approval' %}
+            Сейчас заявка ждёт решение по согласованию, обычное обновление временно выключено.
+            {% elif ticket.status == 'resolved' %}
+            Работа по заявке уже завершена, ниже можно посмотреть комментарии и всю историю.
+            {% elif ticket.performer %}
+            Заявка уже закреплена за исполнителем и движется по рабочему процессу.
+            {% else %}
+            Исполнитель пока не назначен, поэтому это хороший кандидат на быстрый разбор.
+            {% endif %}
+          </p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <div class="ticket-layout">
+    <div class="ticket-main">
+      {% if ticket.status == 'pending_approval' %}
+      <section class="card ticket-panel">
+        <div class="ticket-panel-header">
+          <div>
+            <h3>Согласование</h3>
+            <p class="muted">Тут видно, на каком шаге сейчас находится заявка и кто должен принять решение.</p>
+          </div>
+        </div>
+
+        {% if pending_approvals %}
+        <div class="ticket-approval-list">
+          {% for approval in pending_approvals %}
+          <div class="ticket-approval-item is-pending">
+            <div>
+              <strong>{{ approval.step_name|approval_step_label or ('Шаг ' ~ approval.step_order) }}</strong>
+              <p class="muted">Согласующий: {{ approval.approver.full_name() if approval.approver else 'Не указан' }}</p>
+            </div>
+            <span class="status-badge status-pending_approval">Ожидает решения</span>
+          </div>
           {% endfor %}
-        </select>
-      </div>
+        </div>
+        {% else %}
+        <div class="empty-state">Активных шагов согласования сейчас нет.</div>
+        {% endif %}
+
+        {% if my_pending_approval %}
+        <form method="POST" action="/ticket/{{ ticket.ticket_uid }}/approve" class="ticket-inline-form">
+          <input type="hidden" name="approval_uid" value="{{ my_pending_approval.approval_uid }}">
+          <label>Комментарий к решению</label>
+          <textarea name="comment" rows="3" placeholder="Если нужно, можно коротко пояснить решение"></textarea>
+          <div class="actions">
+            <button class="btn btn-success" type="submit" name="decision" value="approved">Согласовать</button>
+            <button class="btn btn-danger" type="submit" name="decision" value="rejected">Отклонить</button>
+          </div>
+        </form>
+        {% else %}
+        <div class="ticket-note">
+          Решение по этой заявке может принять только текущий согласующий. Остальным здесь доступен только просмотр.
+        </div>
+        {% endif %}
+      </section>
       {% endif %}
+
+      {% if can_update_ticket %}
+      <section class="card ticket-panel">
+        <div class="ticket-panel-header">
+          <div>
+            <h3>Работа с заявкой</h3>
+            <p class="muted">Быстрый блок для смены статуса и назначения исполнителя без лишних переходов.</p>
+          </div>
+        </div>
+
+        <form method="POST" action="/ticket/{{ ticket.ticket_uid }}/update" class="ticket-inline-form">
+          <div class="grid grid-2">
+            <div>
+              <label>Статус</label>
+              <select name="status">
+                <option value="new" {% if ticket.status=='new' %}selected{% endif %}>Новая</option>
+                <option value="in_progress" {% if ticket.status=='in_progress' %}selected{% endif %}>В работе</option>
+                <option value="resolved" {% if ticket.status=='resolved' %}selected{% endif %}>Решена</option>
+                <option value="cancelled" {% if ticket.status=='cancelled' %}selected{% endif %}>Отменена</option>
+              </select>
+            </div>
+            {% if current_user.role in ('manager', 'admin') %}
+            <div>
+              <label>Исполнитель</label>
+              <select name="performer_uid">
+                <option value="">Не назначен</option>
+                {% for s in specialists %}
+                <option value="{{ s.user_uid }}" {% if ticket.performer_uid==s.user_uid %}selected{% endif %}>{{ s.full_name() }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            {% endif %}
+          </div>
+          <div class="actions">
+            <button class="btn btn-primary" type="submit">Сохранить изменения</button>
+          </div>
+        </form>
+      </section>
+      {% endif %}
+
+      <section class="card ticket-panel">
+        <div class="ticket-panel-header">
+          <div>
+            <h3>Комментарии</h3>
+            <p class="muted">Вся рабочая переписка по заявке в одном месте.</p>
+          </div>
+          <span class="count-badge">{{ comments|length }}</span>
+        </div>
+
+        {% if comments %}
+        <div class="ticket-comment-list">
+          {% for c in comments %}
+          <article class="ticket-comment">
+            <div class="ticket-comment-head">
+              <strong>{{ c.author_rel.full_name() if c.author_rel else 'Неизвестный автор' }}</strong>
+              <span class="muted">{{ c.create_date|datefmt }}</span>
+            </div>
+            <p>{{ c.param_value }}</p>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">Комментариев по заявке пока нет.</div>
+        {% endif %}
+
+        <form method="POST" action="/ticket/{{ ticket.ticket_uid }}/add_comment" class="ticket-inline-form">
+          <label>Добавить комментарий</label>
+          <textarea name="text" rows="4" placeholder="Напишите, что сделали, что проверили или что нужно уточнить..." required></textarea>
+          <div class="actions">
+            <button class="btn btn-primary" type="submit">Отправить комментарий</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card ticket-panel">
+        <div class="ticket-panel-header">
+          <div>
+            <h3>История изменений</h3>
+            <p class="muted">Хронология помогает быстро понять, кто и когда двигал заявку дальше.</p>
+          </div>
+          <span class="count-badge">{{ history_entries|length }}</span>
+        </div>
+
+        {% if history_entries %}
+        <div class="ticket-timeline">
+          {% for item in history_entries %}
+          <article class="ticket-timeline-item">
+            <div class="ticket-timeline-dot"></div>
+            <div class="ticket-timeline-body">
+              <div class="ticket-timeline-head">
+                <strong>{{ field_labels.get(item.field_name, item.field_name) }}</strong>
+                <span class="muted">{{ item.changed_date|datefmt }}</span>
+              </div>
+              <p class="muted">
+                Изменил: {{ item.changer.full_name() if item.changer else 'Неизвестно' }}
+              </p>
+              <div class="ticket-change">
+                <span>{{ item.old_value if item.old_value else '—' }}</span>
+                <span class="ticket-change-arrow">&rarr;</span>
+                <strong>{{ item.new_value if item.new_value else '—' }}</strong>
+              </div>
+            </div>
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">Изменений по заявке пока не было.</div>
+        {% endif %}
+      </section>
     </div>
-    <div class="actions" style="margin-top:10px;"><button class="btn btn-primary" type="submit">Сохранить</button></div>
-  </form>
+
+    <aside class="ticket-side">
+      <section class="card ticket-panel">
+        <div class="ticket-panel-header">
+          <div>
+            <h3>Ключевые данные</h3>
+            <p class="muted">Короткая сводка, чтобы не прокручивать страницу туда-сюда.</p>
+          </div>
+        </div>
+
+        <div class="ticket-fact-list">
+          <div class="ticket-fact">
+            <span>Родительская услуга</span>
+            <strong>{{ ticket.catalog.parent.catalog_name if ticket.catalog and ticket.catalog.parent else 'Не указана' }}</strong>
+          </div>
+          <div class="ticket-fact">
+            <span>Услуга</span>
+            <strong>{{ ticket.catalog.catalog_name if ticket.catalog else 'Не указана' }}</strong>
+          </div>
+          <div class="ticket-fact">
+            <span>Автор</span>
+            <strong>{{ ticket.requester.full_name() if ticket.requester else 'Не указан' }}</strong>
+          </div>
+          <div class="ticket-fact">
+            <span>Получатель</span>
+            <strong>{{ ticket.recipient.full_name() if ticket.recipient else 'Не указан' }}</strong>
+          </div>
+          <div class="ticket-fact">
+            <span>Исполнитель</span>
+            <strong>{{ ticket.performer.full_name() if ticket.performer else 'Не назначен' }}</strong>
+          </div>
+          <div class="ticket-fact">
+            <span>Создал</span>
+            <strong>{{ ticket.creator.full_name() if ticket.creator else 'Не указано' }}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="card ticket-panel">
+        <div class="ticket-panel-header">
+          <div>
+            <h3>SLA и сроки</h3>
+            <p class="muted">Здесь удобно смотреть и первую реакцию, и срок по решению.</p>
+          </div>
+        </div>
+
+        <div class="ticket-fact-list">
+          <div class="ticket-fact">
+            <span>Создана</span>
+            <strong>{{ ticket.created_at|datefmt }}</strong>
+          </div>
+          <div class="ticket-fact">
+            <span>Обновлена</span>
+            <strong>{{ ticket.updated_at|datefmt }}</strong>
+          </div>
+          <div class="ticket-fact">
+            <span>Реакция до</span>
+            <strong>{{ ticket.response_due_at|datefmt if ticket.response_due_at else 'Не установлено' }}</strong>
+          </div>
+          <div class="ticket-fact">
+            <span>Первая реакция</span>
+            <strong>{{ ticket.responded_at|datefmt if ticket.responded_at else 'Пока не зафиксирована' }}</strong>
+          </div>
+          <div class="ticket-fact">
+            <span>Решить до</span>
+            <strong>{{ ticket.deadline_at|datefmt if ticket.deadline_at else 'Не установлено' }}</strong>
+          </div>
+          <div class="ticket-fact">
+            <span>Решена</span>
+            <strong>{{ ticket.resolved_at|datefmt if ticket.resolved_at else 'Ещё не решена' }}</strong>
+          </div>
+        </div>
+
+        {% if ticket.deadline_at and ticket.is_overdue() %}
+        <div class="ticket-note ticket-note-danger">
+          Заявка уже вышла за срок решения на {{ ticket.deadline_at|overdue_for }}.
+        </div>
+        {% elif ticket.response_due_at and not ticket.responded_at %}
+        <div class="ticket-note">
+          Первая реакция пока ещё не зафиксирована. Тут удобно быстро увидеть, не зависла ли заявка в начале работы.
+        </div>
+        {% endif %}
+      </section>
+
+      <section class="card ticket-panel">
+        <div class="ticket-panel-header">
+          <div>
+            <h3>Маршрут согласования</h3>
+            <p class="muted">Даже после завершения тут видно, кто участвовал и чем всё закончилось.</p>
+          </div>
+        </div>
+
+        {% if approval_entries %}
+        <div class="ticket-approval-list">
+          {% for approval in approval_entries %}
+          <div class="ticket-approval-item">
+            <div>
+              <strong>{{ approval.step_name|approval_step_label or ('Шаг ' ~ approval.step_order) }}</strong>
+              <p class="muted">
+                {{ approval.approver.full_name() if approval.approver else 'Не указан' }}
+                {% if approval.decided_at %}
+                &middot; {{ approval.decided_at|datefmt }}
+                {% endif %}
+              </p>
+              {% if approval.comment %}
+              <p class="ticket-approval-comment">{{ approval.comment }}</p>
+              {% endif %}
+            </div>
+            <span class="status-badge status-{{ approval.status }}">
+              {% if approval.status == 'pending' %}Ожидает{% elif approval.status == 'approved' %}Согласовано{% elif approval.status == 'rejected' %}Отклонено{% else %}{{ approval.status }}{% endif %}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">Для этой заявки согласование не требовалось.</div>
+        {% endif %}
+      </section>
+    </aside>
+  </div>
 </div>
-{% endif %}
 {% endblock %}
