@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Согласования — Service Desk{% endblock %}
+{% block title %}Согласования — Служба поддержки{% endblock %}
 {% block content %}
 <div class="page-home">
 
@@ -211,9 +211,9 @@
   }
 
   function switchTab(name) {
-    document.querySelectorAll('.appr-tab').forEach(t => t.style.display = 'none');
+    document.querySelectorAll('.appr-tab').forEach(t => t.classList.add('appr-tab-hidden'));
     document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active'));
-    document.getElementById('tab-' + name).style.display = '';
+    document.getElementById('tab-' + name).classList.remove('appr-tab-hidden');
     document.querySelector(`[data-tab="${name}"]`).classList.add('active');
   }
 

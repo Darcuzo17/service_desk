@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Service Desk{% endblock %}</title>
+  <title>{% block title %}Служба поддержки{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 
@@ -13,7 +13,7 @@
   <nav class="navbar">
     <div class="container">
       <div class="nav-left">
-        <a href="{{ url_for('home') }}">Service Desk</a>
+        <a href="{{ url_for('home') }}">Служба поддержки</a>
         {% if is_specialist() %}
         <a href="{{ url_for('tickets_board') }}"
           class="{% if request.endpoint == 'tickets_board' %}active{% endif %}">Заявки</a>

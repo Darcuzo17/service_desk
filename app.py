@@ -1450,10 +1450,9 @@ def ticket_detail(ticket_uid):
         .all()
     )
     history_entries = ticket.history.order_by(TicketHistory.changed_date.desc()).all()
-    approval_entries = (
-        ticket.approvals.order_by(TicketApproval.step_order, TicketApproval.create_date)
-        .all()
-    )
+    approval_entries = ticket.approvals.order_by(
+        TicketApproval.step_order, TicketApproval.create_date
+    ).all()
     pending_approvals = (
         ticket.approvals.filter_by(status="pending")
         .order_by(TicketApproval.step_order)
@@ -1469,7 +1468,7 @@ def ticket_detail(ticket_uid):
     )
     can_update_ticket = (
         current_user.role in ("specialist", "manager", "admin")
-        and ticket.status != "pending_approval"
+        and ticket.status not in {"pending_approval", "rejected"}
     )
     return render_template(
         "ticket_detail.html",
