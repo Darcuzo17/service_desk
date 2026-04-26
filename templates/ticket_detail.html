@@ -48,24 +48,10 @@
           <div class="ticket-kpi">
             <span>Автор</span>
             <strong>{{ ticket.requester.full_name() if ticket.requester else 'Не указан' }}</strong>
-            <small>
-              {% if ticket.recipient and ticket.recipient_uid != ticket.requester_uid %}
-              Получатель: {{ ticket.recipient.full_name() }}
-              {% else %}
-              Заявка оформлена на автора
-              {% endif %}
-            </small>
           </div>
           <div class="ticket-kpi">
             <span>Исполнитель</span>
             <strong>{{ ticket.performer.full_name() if ticket.performer else 'Не назначен' }}</strong>
-            <small>
-              {% if ticket.performer %}
-              Сейчас заявка уже в работе у конкретного человека
-              {% else %}
-              Свободная заявка, можно забрать в работу
-              {% endif %}
-            </small>
           </div>
           <div class="ticket-kpi">
             <span>Срок решения</span>
@@ -153,7 +139,6 @@
         <div class="ticket-panel-header">
           <div>
             <h3>Работа с заявкой</h3>
-            <p class="muted">Быстрый блок для смены статуса и назначения исполнителя без лишних переходов.</p>
           </div>
         </div>
 
@@ -220,42 +205,6 @@
           </div>
         </form>
       </section>
-
-      <section class="card ticket-panel">
-        <div class="ticket-panel-header">
-          <div>
-            <h3>История изменений</h3>
-            <p class="muted">Хронология помогает быстро понять, кто и когда двигал заявку дальше.</p>
-          </div>
-          <span class="count-badge">{{ history_entries|length }}</span>
-        </div>
-
-        {% if history_entries %}
-        <div class="ticket-timeline">
-          {% for item in history_entries %}
-          <article class="ticket-timeline-item">
-            <div class="ticket-timeline-dot"></div>
-            <div class="ticket-timeline-body">
-              <div class="ticket-timeline-head">
-                <strong>{{ field_labels.get(item.field_name, item.field_name) }}</strong>
-                <span class="muted">{{ item.changed_date|datefmt }}</span>
-              </div>
-              <p class="muted">
-                Изменил: {{ item.changer.full_name() if item.changer else 'Неизвестно' }}
-              </p>
-              <div class="ticket-change">
-                <span>{{ item.old_value if item.old_value else '—' }}</span>
-                <span class="ticket-change-arrow">&rarr;</span>
-                <strong>{{ item.new_value if item.new_value else '—' }}</strong>
-              </div>
-            </div>
-          </article>
-          {% endfor %}
-        </div>
-        {% else %}
-        <div class="empty-state">Изменений по заявке пока не было.</div>
-        {% endif %}
-      </section>
     </div>
 
     <aside class="ticket-side">
@@ -263,7 +212,6 @@
         <div class="ticket-panel-header">
           <div>
             <h3>Ключевые данные</h3>
-            <p class="muted">Короткая сводка, чтобы не прокручивать страницу туда-сюда.</p>
           </div>
         </div>
 
@@ -281,62 +229,22 @@
             <strong>{{ ticket.requester.full_name() if ticket.requester else 'Не указан' }}</strong>
           </div>
           <div class="ticket-fact">
-            <span>Получатель</span>
-            <strong>{{ ticket.recipient.full_name() if ticket.recipient else 'Не указан' }}</strong>
-          </div>
-          <div class="ticket-fact">
             <span>Исполнитель</span>
             <strong>{{ ticket.performer.full_name() if ticket.performer else 'Не назначен' }}</strong>
           </div>
           <div class="ticket-fact">
-            <span>Создал</span>
-            <strong>{{ ticket.creator.full_name() if ticket.creator else 'Не указано' }}</strong>
-          </div>
-        </div>
-      </section>
-
-      <section class="card ticket-panel">
-        <div class="ticket-panel-header">
-          <div>
-            <h3>SLA и сроки</h3>
-            <p class="muted">Здесь удобно смотреть и первую реакцию, и срок по решению.</p>
-          </div>
-        </div>
-
-        <div class="ticket-fact-list">
-          <div class="ticket-fact">
-            <span>Создана</span>
+            <span>Дата создания</span>
             <strong>{{ ticket.created_at|datefmt }}</strong>
-          </div>
-          <div class="ticket-fact">
-            <span>Обновлена</span>
-            <strong>{{ ticket.updated_at|datefmt }}</strong>
-          </div>
-          <div class="ticket-fact">
-            <span>Реакция до</span>
-            <strong>{{ ticket.response_due_at|datefmt if ticket.response_due_at else 'Не установлено' }}</strong>
-          </div>
-          <div class="ticket-fact">
-            <span>Первая реакция</span>
-            <strong>{{ ticket.responded_at|datefmt if ticket.responded_at else 'Пока не зафиксирована' }}</strong>
           </div>
           <div class="ticket-fact">
             <span>Решить до</span>
             <strong>{{ ticket.deadline_at|datefmt if ticket.deadline_at else 'Не установлено' }}</strong>
-          </div>
-          <div class="ticket-fact">
-            <span>Решена</span>
-            <strong>{{ ticket.resolved_at|datefmt if ticket.resolved_at else 'Ещё не решена' }}</strong>
           </div>
         </div>
 
         {% if ticket.deadline_at and ticket.is_overdue() %}
         <div class="ticket-note ticket-note-danger">
           Заявка уже вышла за срок решения на {{ ticket.deadline_at|overdue_for }}.
-        </div>
-        {% elif ticket.response_due_at and not ticket.responded_at %}
-        <div class="ticket-note">
-          Первая реакция пока ещё не зафиксирована. Тут удобно быстро увидеть, не зависла ли заявка в начале работы.
         </div>
         {% endif %}
       </section>

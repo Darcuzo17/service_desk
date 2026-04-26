@@ -1202,6 +1202,7 @@ button:active,
 .ticket-inline-form {
   display: grid;
   gap: 14px;
+  margin-top: 20px;
 }
 
 .ticket-inline-form textarea,
@@ -1685,21 +1686,25 @@ button:active,
 .priority-critical {
   color: #8e2f24;
   background: rgba(247, 185, 176, 0.6);
+  padding: 10px;
 }
 
 .priority-high {
   color: #9a4d13;
   background: rgba(255, 214, 153, 0.58);
+  padding: 10px;
 }
 
 .priority-medium {
   color: #84620f;
   background: rgba(248, 231, 167, 0.6);
+  padding: 10px;
 }
 
 .priority-low {
   color: #206948;
   background: rgba(178, 232, 204, 0.62);
+  padding: 10px;
 }
 
 .page-home .card,
