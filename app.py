@@ -1347,21 +1347,45 @@ def get_catalog_item(catalog_uid):
 @app.route("/profile")
 @login_required
 def profile():
-    tickets = (
-        Ticket.query.filter(
-            db.or_(
-                Ticket.requester_uid == current_user.user_uid,
-                Ticket.recipient_uid == current_user.user_uid,
-            )
+    filters = _current_filter_state()
+    deadline_from = _date_arg("deadline_from")
+    deadline_to = _date_arg("deadline_to")
+    tickets_query = Ticket.query.filter(
+        db.or_(
+            Ticket.requester_uid == current_user.user_uid,
+            Ticket.recipient_uid == current_user.user_uid,
         )
-        .order_by(Ticket.created_at.desc())
-        .limit(20)
-        .all()
     )
+    tickets_query = _filter_tickets_query(
+        tickets_query,
+        statuses=filters["statuses"],
+        performer_uids=filters["performers"],
+        priorities=filters["priorities"],
+        deadline_from=deadline_from,
+        deadline_to=deadline_to,
+    )
+    tickets = tickets_query.order_by(Ticket.created_at.desc()).limit(50).all()
     manager = (
         User.query.get(current_user.manager_uid) if current_user.manager_uid else None
     )
-    return render_template("profile.html", tickets=tickets, manager=manager)
+    filter_users = (
+        User.query.join(UserRole, User.user_uid == UserRole.user_uid)
+        .filter(
+            UserRole.role.in_(["specialist", "manager", "admin"]),
+            User.is_deactivated == False,
+        )
+        .order_by(User.last_name)
+        .all()
+    )
+    return render_template(
+        "profile.html",
+        tickets=tickets,
+        manager=manager,
+        filters=filters,
+        filter_users=filter_users,
+        ticket_statuses=TICKET_STATUS_LABELS,
+        priorities=PRIORITY_LABELS,
+    )
 
 
 @app.route("/profile/password", methods=["POST"])

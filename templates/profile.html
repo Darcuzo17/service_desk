@@ -21,20 +21,76 @@
   </div>
 </div>
 <div class="card">
-  <h3>Последние заявки</h3>
+  <h3>Мои заявки</h3>
+  <form method="get" class="filter-panel profile-filter-panel">
+    <div class="filter-field">
+      <label for="profile-status-filter">Статусы</label>
+      <select id="profile-status-filter" name="status" multiple size="4">
+        {% for value, label in ticket_statuses.items() %}
+        <option value="{{ value }}" {% if value in filters.statuses %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="profile-performer-filter">Исполнители</label>
+      <select id="profile-performer-filter" name="performer" multiple size="4">
+        <option value="__none__" {% if "__none__" in filters.performers %}selected{% endif %}>Без исполнителя</option>
+        {% for user in filter_users %}
+        <option value="{{ user.user_uid }}" {% if user.user_uid in filters.performers %}selected{% endif %}>{{ user.full_name() }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="profile-priority-filter">Приоритет</label>
+      <select id="profile-priority-filter" name="priority" multiple size="4">
+        {% for value, label in priorities.items() %}
+        <option value="{{ value }}" {% if value in filters.priorities %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="profile-deadline-from">Срок от</label>
+      <input id="profile-deadline-from" name="deadline_from" type="date" value="{{ filters.deadline_from }}">
+    </div>
+    <div class="filter-field">
+      <label for="profile-deadline-to">Срок до</label>
+      <input id="profile-deadline-to" name="deadline_to" type="date" value="{{ filters.deadline_to }}">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn-primary">Применить</button>
+      <a href="{{ url_for('profile') }}" class="btn">Сбросить</a>
+    </div>
+  </form>
+
   <table class="table">
-    <tr>
-      <th>Номер</th>
-      <th>Тема</th>
-      <th>Статус</th>
-      <th>Дата</th>
-    </tr>
-    {% for t in tickets %}<tr>
-      <td>{{ t.ticket_number }}</td>
-      <td>{{ t.summary }}</td>
-      <td>{{ t.status|status_label }}</td>
-      <td>{{ t.created_at|datefmt }}</td>
-    </tr>{% endfor %}
+    <thead>
+      <tr>
+        <th>Номер</th>
+        <th>Тема</th>
+        <th>Статус</th>
+        <th>Исполнитель</th>
+        <th>Срок</th>
+        <th>Приоритет</th>
+        <th>Дата</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in tickets %}
+      <tr>
+        <td><a href="/ticket/{{ t.ticket_uid }}">{{ t.ticket_number }}</a></td>
+        <td>{{ t.summary }}</td>
+        <td><span class="status-badge status-{{ t.status }}">{{ t.status|status_label }}</span></td>
+        <td>{{ t.performer.full_name() if t.performer else 'Без исполнителя' }}</td>
+        <td>{{ t.deadline_at|datefmt if t.deadline_at else 'Не установлен' }}</td>
+        <td><span class="ticket-priority priority-{{ t.priority }}">{{ t.priority|priority_label }}</span></td>
+        <td>{{ t.created_at|datefmt }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="7">Заявки не найдены</td>
+      </tr>
+      {% endfor %}
+    </tbody>
   </table>
 </div>
 {% endblock %}

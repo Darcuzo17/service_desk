@@ -746,6 +746,10 @@ button:active,
   margin-bottom: 16px;
 }
 
+.profile-filter-panel {
+  margin-top: 12px;
+}
+
 .overdue td {
   color: var(--danger);
 }
