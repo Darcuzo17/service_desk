@@ -99,10 +99,20 @@ function openCreateTicketModal(catalogUid = null) {
   }, 0);
 }
 
-async function loadTickets(filter = 'all', userId = '', workGroupId = '') {
-  const params = new URLSearchParams({ filter });
-  if (userId) params.set('user_id', userId);
-  if (workGroupId) params.set('work_group_uid', workGroupId);
+function selectedValues(id) {
+  return Array.from(document.getElementById(id)?.selectedOptions || [])
+    .map(option => option.value)
+    .filter(Boolean);
+}
+
+async function loadTickets(filters = {}) {
+  const params = new URLSearchParams({ filter: filters.filter || 'all' });
+  (filters.statuses || []).forEach(status => params.append('status', status));
+  (filters.performers || []).forEach(performer => params.append('performer', performer));
+  (filters.priorities || []).forEach(priority => params.append('priority', priority));
+  if (filters.deadlineFrom) params.set('deadline_from', filters.deadlineFrom);
+  if (filters.deadlineTo) params.set('deadline_to', filters.deadlineTo);
+  if (filters.workGroupId) params.set('work_group_uid', filters.workGroupId);
 
   const res = await fetch(`/api/tickets?${params.toString()}`);
   if (!res.ok) return;
@@ -141,9 +151,16 @@ async function loadTickets(filter = 'all', userId = '', workGroupId = '') {
 
 async function applyFilter() {
   const filter = document.getElementById('filter-select')?.value || 'all';
-  const userId = document.getElementById('user-select')?.value || '';
   const workGroupId = document.getElementById('wg-select')?.value || '';
-  await loadTickets(filter, userId, workGroupId);
+  await loadTickets({
+    filter,
+    workGroupId,
+    statuses: selectedValues('status-select'),
+    performers: selectedValues('user-select'),
+    priorities: selectedValues('priority-select'),
+    deadlineFrom: document.getElementById('deadline-from')?.value || '',
+    deadlineTo: document.getElementById('deadline-to')?.value || '',
+  });
 }
 
 async function loadUsers() {
@@ -163,6 +180,30 @@ async function loadUsers() {
   // и в модалке назначения, чтобы не дублировать запросы.
   byPerformer.innerHTML = '<option value="">— по исполнителю —</option>' + options;
   assignUser.innerHTML = '<option value="">Выбрать исполнителя</option>' + options;
+}
+
+function resetTicketFilters() {
+  ['status-select', 'user-select', 'priority-select'].forEach(id => {
+    Array.from(document.getElementById(id)?.options || []).forEach(option => {
+      option.selected = false;
+    });
+  });
+  const filterSelect = document.getElementById('filter-select');
+  if (filterSelect) filterSelect.value = 'all';
+  const workGroupSelect = document.getElementById('wg-select');
+  if (workGroupSelect) workGroupSelect.value = '';
+  const deadlineFrom = document.getElementById('deadline-from');
+  const deadlineTo = document.getElementById('deadline-to');
+  if (deadlineFrom) deadlineFrom.value = '';
+  if (deadlineTo) deadlineTo.value = '';
+  applyFilter();
+}
+
+function normalizePerformerFilter() {
+  const byPerformer = document.getElementById('user-select');
+  if (!byPerformer?.options?.length) return;
+  byPerformer.options[0].value = '__none__';
+  byPerformer.options[0].textContent = 'Без исполнителя';
 }
 
 function openAssign(uid) {
@@ -354,12 +395,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Тут идёт общий старт страницы:
   // подтягиваем фильтры, справочники, уведомления и, если нужно, канбан.
   await loadUsers();
+  normalizePerformerFilter();
   await applyFilter();
   updateTicketPriorityPreview();
 
   document.getElementById('filter-select')?.addEventListener('change', applyFilter);
   document.getElementById('user-select')?.addEventListener('change', applyFilter);
+  document.getElementById('status-select')?.addEventListener('change', applyFilter);
+  document.getElementById('priority-select')?.addEventListener('change', applyFilter);
+  document.getElementById('deadline-from')?.addEventListener('change', applyFilter);
+  document.getElementById('deadline-to')?.addEventListener('change', applyFilter);
   document.getElementById('wg-select')?.addEventListener('change', applyFilter);
+  document.getElementById('reset-filters')?.addEventListener('click', resetTicketFilters);
   document.getElementById('ticket-catalog')?.addEventListener('change', updateTicketPriorityPreview);
 
   document.addEventListener('click', event => {

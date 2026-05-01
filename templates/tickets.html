@@ -3,23 +3,59 @@
 {% block content %}
 <div class="card">
   <h2>Очередь задач</h2>
-  <div id="filters">
-    <select id="filter-select">
-      <option value="all">Все задачи</option>
-      <option value="my">Мои задачи</option>
-      <option value="overdue">Просроченные</option>
-    </select>
-    <select id="user-select">
-      <option value="">— по исполнителю —</option>
-    </select>
+  <div id="filters" class="filter-panel">
+    <div class="filter-field">
+      <label for="filter-select">Выборка</label>
+      <select id="filter-select">
+        <option value="all">Все задачи</option>
+        <option value="my">Мои задачи</option>
+        <option value="overdue">Просроченные</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="status-select">Статусы</label>
+      <select id="status-select" multiple size="4">
+        {% for value, label in ticket_statuses.items() %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="user-select">Исполнители</label>
+      <select id="user-select" multiple size="4">
+        <option value="__none__">Без исполнителя</option>
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="priority-select">Приоритет</label>
+      <select id="priority-select" multiple size="4">
+        {% for value, label in priorities.items() %}
+        <option value="{{ value }}">{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="deadline-from">Срок от</label>
+      <input id="deadline-from" type="date">
+    </div>
+    <div class="filter-field">
+      <label for="deadline-to">Срок до</label>
+      <input id="deadline-to" type="date">
+    </div>
     {% if current_user.role == 'admin' %}
-    <select id="wg-select">
-      <option value="">— все рабочие группы —</option>
-      {% for wg in work_groups %}
-      <option value="{{ wg.work_group_uid }}">{{ wg.group_name }}</option>
-      {% endfor %}
-    </select>
+    <div class="filter-field">
+      <label for="wg-select">Рабочая группа</label>
+      <select id="wg-select">
+        <option value="">Все рабочие группы</option>
+        {% for wg in work_groups %}
+        <option value="{{ wg.work_group_uid }}">{{ wg.group_name }}</option>
+        {% endfor %}
+      </select>
+    </div>
     {% endif %}
+    <div class="filter-actions">
+      <button type="button" id="reset-filters">Сбросить</button>
+    </div>
   </div>
   <table id="queue" class="table">
     <thead>
@@ -27,7 +63,7 @@
         <th>#</th>
         <th>Описание</th>
         <th>Статус</th>
-        <th>ИсполнитеFль</th>
+        <th>Исполнитель</th>
         <th>Срок</th>
         <th>Приоритет</th>
         <th>Действия</th>

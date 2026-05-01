@@ -7,6 +7,55 @@
     <h1 class="page-title"><i data-feather="check-square"></i> Согласования</h1>
   </div>
 
+  <form method="get" class="filter-panel approvals-filter-panel">
+    <input type="hidden" id="active-tab-input" name="active_tab" value="{{ active_tab }}">
+    <div class="filter-field">
+      <label for="status-filter">Статусы заявок</label>
+      <select id="status-filter" name="status" multiple size="4">
+        {% for value, label in ticket_statuses.items() %}
+        <option value="{{ value }}" {% if value in filters.statuses %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="performer-filter">Исполнители</label>
+      <select id="performer-filter" name="performer" multiple size="4">
+        <option value="__none__" {% if "__none__" in filters.performers %}selected{% endif %}>Без исполнителя</option>
+        {% for user in filter_users %}
+        <option value="{{ user.user_uid }}" {% if user.user_uid in filters.performers %}selected{% endif %}>{{ user.full_name() }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="decision-filter">Решения</label>
+      <select id="decision-filter" name="decision" multiple size="3">
+        {% for value, label in approval_statuses.items() %}
+        <option value="{{ value }}" {% if value in filters.decisions %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="priority-filter">Приоритет</label>
+      <select id="priority-filter" name="priority" multiple size="4">
+        {% for value, label in priorities.items() %}
+        <option value="{{ value }}" {% if value in filters.priorities %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-field">
+      <label for="deadline-from-filter">Срок от</label>
+      <input id="deadline-from-filter" name="deadline_from" type="date" value="{{ filters.deadline_from }}">
+    </div>
+    <div class="filter-field">
+      <label for="deadline-to-filter">Срок до</label>
+      <input id="deadline-to-filter" name="deadline_to" type="date" value="{{ filters.deadline_to }}">
+    </div>
+    <div class="filter-actions">
+      <button type="submit" class="btn-primary">Применить</button>
+      <a href="{{ url_for('approvals') }}" class="btn">Сбросить</a>
+    </div>
+  </form>
+
   <div class="view-switcher view-switcher-spaced">
     {% if to_approve %}
     <button class="view-tab active" data-tab="to_approve" onclick="switchTab('to_approve')">
@@ -215,9 +264,16 @@
     document.querySelectorAll('.view-tab').forEach(b => b.classList.remove('active'));
     document.getElementById('tab-' + name).classList.remove('appr-tab-hidden');
     document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+    const activeTabInput = document.getElementById('active-tab-input');
+    if (activeTabInput) activeTabInput.value = name;
   }
 
   document.addEventListener('DOMContentLoaded', function () {
+    const activeTab = '{{ active_tab }}';
+    if (activeTab && document.getElementById('tab-' + activeTab)) {
+      switchTab(activeTab);
+      return;
+    }
     {% if to_approve %}
     switchTab('to_approve');
     {% else %}

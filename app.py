@@ -10,7 +10,7 @@
 
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash
 from flask import (
     Flask,
@@ -108,6 +108,23 @@ def load_user(user_uid):
 SPECIALIST_ROLES = {"specialist", "manager", "admin"}
 TASK_QUEUE_FILTERS = {"all", "my", "overdue"}
 CLOSED_TICKET_STATUSES = {"resolved", "closed", "cancelled"}
+TICKET_STATUS_LABELS = {
+    "new": "Новая",
+    "assigned": "Назначено",
+    "in_progress": "В работе",
+    "on_hold": "Приостановлено",
+    "pending_approval": "На согласовании",
+    "approved": "Согласовано",
+    "rejected": "Отклонено",
+    "resolved": "Решена",
+    "closed": "Закрыта",
+    "cancelled": "Отменено",
+}
+APPROVAL_STATUS_LABELS = {
+    "pending": "Ожидает",
+    "approved": "Согласовано",
+    "rejected": "Отклонено",
+}
 ROLE_LABELS = {
     "user": "Пользователь",
     "specialist": "Специалист",
@@ -192,6 +209,119 @@ def _admin_forbidden():
     if request.is_json:
         return jsonify({"error": "Доступ запрещён"}), 403
     return "Доступ запрещён", 403
+
+
+def _selected_args(name, allowed=None):
+    values = [value for value in request.args.getlist(name) if value]
+    if not values:
+        raw_value = request.args.get(name, "")
+        values = [value for value in raw_value.split(",") if value]
+    if allowed is not None:
+        values = [value for value in values if value in allowed]
+    return values
+
+
+def _date_arg(name):
+    value = request.args.get(name)
+    if not value:
+        return None
+    try:
+        return datetime.strptime(value, "%Y-%m-%d")
+    except ValueError:
+        return None
+
+
+def _parse_datetime_local(value):
+    if not value:
+        return None
+    for date_format in ("%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M"):
+        try:
+            return datetime.strptime(value, date_format)
+        except ValueError:
+            continue
+    raise ValueError("Некорректный формат даты")
+
+
+def _history_datetime(value):
+    return value.strftime("%d.%m.%Y %H:%M") if value else None
+
+
+def _filter_tickets_query(
+    query,
+    statuses=None,
+    performer_uids=None,
+    priorities=None,
+    deadline_from=None,
+    deadline_to=None,
+):
+    if statuses:
+        query = query.filter(Ticket.status.in_(statuses))
+    if performer_uids:
+        selected_performers = [
+            performer_uid for performer_uid in performer_uids if performer_uid != "__none__"
+        ]
+        performer_filters = []
+        if selected_performers:
+            performer_filters.append(Ticket.performer_uid.in_(selected_performers))
+        if "__none__" in performer_uids:
+            performer_filters.append(Ticket.performer_uid == None)
+        if performer_filters:
+            query = query.filter(db.or_(*performer_filters))
+    if priorities:
+        query = query.filter(Ticket.priority.in_(priorities))
+    if deadline_from:
+        query = query.filter(Ticket.deadline_at >= deadline_from)
+    if deadline_to:
+        query = query.filter(Ticket.deadline_at < deadline_to + timedelta(days=1))
+    return query
+
+
+def _ticket_matches_filters(ticket, filters, deadline_from=None, deadline_to=None):
+    if filters["statuses"] and ticket.status not in filters["statuses"]:
+        return False
+    if filters["performers"]:
+        has_unassigned = "__none__" in filters["performers"]
+        selected_performers = [
+            performer_uid
+            for performer_uid in filters["performers"]
+            if performer_uid != "__none__"
+        ]
+        if ticket.performer_uid is None:
+            if not has_unassigned:
+                return False
+        elif ticket.performer_uid not in selected_performers:
+            return False
+    if filters["priorities"] and ticket.priority not in filters["priorities"]:
+        return False
+    ticket_deadline_date = ticket.deadline_at.date() if ticket.deadline_at else None
+    if deadline_from and (
+        not ticket_deadline_date or ticket_deadline_date < deadline_from.date()
+    ):
+        return False
+    if deadline_to and (
+        not ticket_deadline_date or ticket_deadline_date > deadline_to.date()
+    ):
+        return False
+    return True
+
+
+def _approval_matches_filters(approval, filters, deadline_from=None, deadline_to=None):
+    if filters["decisions"] and approval.status not in filters["decisions"]:
+        return False
+    return approval.ticket and _ticket_matches_filters(
+        approval.ticket, filters, deadline_from, deadline_to
+    )
+
+
+def _current_filter_state():
+    return {
+        "statuses": _selected_args("status", TICKET_STATUS_LABELS),
+        "performers": _selected_args("performer"),
+        "priorities": _selected_args("priority", PRIORITY_LABELS),
+        "decisions": _selected_args("decision", APPROVAL_STATUS_LABELS),
+        "deadline_from": request.args.get("deadline_from", ""),
+        "deadline_to": request.args.get("deadline_to", ""),
+    }
 
 
 def _start_ticket_sla(ticket, catalog=None, started_at=None):
@@ -1065,6 +1195,13 @@ def api_search():
 @app.route("/approvals")
 @login_required
 def approvals():
+    filters = _current_filter_state()
+    deadline_from = _date_arg("deadline_from")
+    deadline_to = _date_arg("deadline_to")
+    active_tab = request.args.get("active_tab", "")
+    if active_tab not in {"to_approve", "waiting", "history", "all"}:
+        active_tab = ""
+
     # Здесь лежат шаги, где текущий пользователь должен принять решение.
     to_approve = (
         TicketApproval.query.filter_by(
@@ -1073,6 +1210,11 @@ def approvals():
         .order_by(TicketApproval.create_date.desc())
         .all()
     )
+    to_approve = [
+        approval
+        for approval in to_approve
+        if _approval_matches_filters(approval, filters, deadline_from, deadline_to)
+    ]
 
     # А тут уже заявки самого пользователя, которые сейчас висят на согласовании.
     waiting = (
@@ -1082,6 +1224,20 @@ def approvals():
         .order_by(Ticket.created_at.desc())
         .all()
     )
+    waiting = [
+        ticket
+        for ticket in waiting
+        if _ticket_matches_filters(ticket, filters, deadline_from, deadline_to)
+    ]
+    if filters["decisions"]:
+        waiting = [
+            ticket
+            for ticket in waiting
+            if any(
+                approval.status in filters["decisions"]
+                for approval in ticket.approvals.all()
+            )
+        ]
     waiting_approvers = {}
     if waiting:
         waiting_ticket_uids = [ticket.ticket_uid for ticket in waiting]
@@ -1116,6 +1272,11 @@ def approvals():
         .limit(50)
         .all()
     )
+    my_history = [
+        approval
+        for approval in my_history
+        if _approval_matches_filters(approval, filters, deadline_from, deadline_to)
+    ]
 
     # Админу даём полную картину, ему это в админке полезно.
     all_approvals = None
@@ -1125,6 +1286,21 @@ def approvals():
             .limit(200)
             .all()
         )
+        all_approvals = [
+            approval
+            for approval in all_approvals
+            if _approval_matches_filters(approval, filters, deadline_from, deadline_to)
+        ]
+
+    filter_users = (
+        User.query.join(UserRole, User.user_uid == UserRole.user_uid)
+        .filter(
+            UserRole.role.in_(["specialist", "manager", "admin"]),
+            User.is_deactivated == False,
+        )
+        .order_by(User.last_name)
+        .all()
+    )
 
     return render_template(
         "approvals.html",
@@ -1133,6 +1309,12 @@ def approvals():
         waiting_approvers=waiting_approvers,
         my_history=my_history,
         all_approvals=all_approvals,
+        filters=filters,
+        filter_users=filter_users,
+        ticket_statuses=TICKET_STATUS_LABELS,
+        approval_statuses=APPROVAL_STATUS_LABELS,
+        priorities=PRIORITY_LABELS,
+        active_tab=active_tab,
     )
 
 
@@ -1293,10 +1475,23 @@ def tickets_board():
         if current_user.role == "admin"
         else []
     )
-    return render_template("tickets.html", work_groups=work_groups)
+    return render_template(
+        "tickets.html",
+        work_groups=work_groups,
+        ticket_statuses=TICKET_STATUS_LABELS,
+        priorities=PRIORITY_LABELS,
+    )
 
 
-def _task_queue_query(filter_name="all", performer_uid=None, work_group_uid=None):
+def _task_queue_query(
+    filter_name="all",
+    performer_uids=None,
+    work_group_uid=None,
+    statuses=None,
+    priorities=None,
+    deadline_from=None,
+    deadline_to=None,
+):
     """
     Формирует выборку для доски заявок.
 
@@ -1323,8 +1518,14 @@ def _task_queue_query(filter_name="all", performer_uid=None, work_group_uid=None
             Ticket.deadline_at < datetime.utcnow(),
             ~Ticket.status.in_(CLOSED_TICKET_STATUSES),
         )
-    if performer_uid:
-        query = query.filter(Ticket.performer_uid == performer_uid)
+    query = _filter_tickets_query(
+        query,
+        statuses=statuses,
+        performer_uids=performer_uids,
+        priorities=priorities,
+        deadline_from=deadline_from,
+        deadline_to=deadline_to,
+    )
 
     priority_sort = case(
         (Ticket.priority == "critical", 4),
@@ -1347,10 +1548,20 @@ def list_task_queue():
     filter_name = request.args.get("filter", "all")
     if filter_name not in TASK_QUEUE_FILTERS:
         filter_name = "all"
-    user_id = request.args.get("user_id") or None
+    performer_uids = _selected_args("performer") or _selected_args("user_id")
+    statuses = _selected_args("status", TICKET_STATUS_LABELS)
+    priorities = _selected_args("priority", PRIORITY_LABELS)
+    deadline_from = _date_arg("deadline_from")
+    deadline_to = _date_arg("deadline_to")
     work_group_uid = request.args.get("work_group_uid") or None
     tickets = _task_queue_query(
-        filter_name=filter_name, performer_uid=user_id, work_group_uid=work_group_uid
+        filter_name=filter_name,
+        performer_uids=performer_uids,
+        work_group_uid=work_group_uid,
+        statuses=statuses,
+        priorities=priorities,
+        deadline_from=deadline_from,
+        deadline_to=deadline_to,
     ).all()
     return jsonify(
         [
@@ -1613,6 +1824,7 @@ def update_ticket_form(ticket_uid):
         return redirect(f"/ticket/{ticket_uid}")
     new_status = request.form.get("status")
     new_performer = request.form.get("performer_uid") or None
+    deadline_submitted = "deadline_at" in request.form
     now = datetime.utcnow()
     if new_status and new_status != ticket.status:
         add_ticket_history(
@@ -1632,6 +1844,24 @@ def update_ticket_form(ticket_uid):
         ticket.performer_uid = new_performer
         if new_performer:
             _mark_ticket_responded(ticket, now)
+    if deadline_submitted:
+        if current_user.role not in ("admin", "manager"):
+            flash("Недостаточно прав для изменения срока исполнения", "error")
+            return redirect(f"/ticket/{ticket_uid}")
+        try:
+            new_deadline = _parse_datetime_local(request.form.get("deadline_at"))
+        except ValueError as exc:
+            flash(str(exc), "error")
+            return redirect(f"/ticket/{ticket_uid}")
+        if new_deadline != ticket.deadline_at:
+            add_ticket_history(
+                ticket_uid,
+                "deadline_at",
+                _history_datetime(ticket.deadline_at),
+                _history_datetime(new_deadline),
+                current_user.user_uid,
+            )
+            ticket.deadline_at = new_deadline
     ticket.updated_at = now
     ticket.updated_by = current_user.user_uid
     db.session.commit()
@@ -1828,6 +2058,7 @@ def update_ticket(ticket_uid):
         new_summary = (data.get("summary") or "").strip()
         new_desc = (data.get("description") or "").strip()
         new_prio = data.get("priority")
+        deadline_submitted = "deadline_at" in data
         if new_summary and new_summary != ticket.summary:
             add_ticket_history(
                 ticket_uid,
@@ -1851,6 +2082,25 @@ def update_ticket(ticket_uid):
                 ticket_uid, "priority", ticket.priority, new_prio, current_user.user_uid
             )
             ticket.priority = new_prio
+        if deadline_submitted:
+            if current_user.role not in ("admin", "manager"):
+                return (
+                    jsonify({"error": "Недостаточно прав для изменения срока исполнения"}),
+                    403,
+                )
+            try:
+                new_deadline = _parse_datetime_local(data.get("deadline_at"))
+            except ValueError as exc:
+                return jsonify({"error": str(exc)}), 400
+            if new_deadline != ticket.deadline_at:
+                add_ticket_history(
+                    ticket_uid,
+                    "deadline_at",
+                    _history_datetime(ticket.deadline_at),
+                    _history_datetime(new_deadline),
+                    current_user.user_uid,
+                )
+                ticket.deadline_at = new_deadline
 
     elif action == "delete":
         # Полное удаление — штука опасная, поэтому оставляем только админу.
@@ -2267,7 +2517,7 @@ def dashboard():
     if my_wg_uids:
         base = base.filter(ServiceCatalog.work_group_uid.in_(my_wg_uids))
 
-    # На дашборде держим только живые заявки.
+    # На канбане держим только живые заявки.
     # Закрытые и отменённые тут уже просто шумят.
     all_tickets = (
         base.filter(~Ticket.status.in_(["closed", "cancelled"]))

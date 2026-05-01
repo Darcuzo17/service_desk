@@ -708,6 +708,44 @@ button:active,
   min-width: 160px;
 }
 
+.filter-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: #f8fafc;
+}
+
+.filter-field {
+  min-width: 0;
+}
+
+.filter-field label {
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+}
+
+.filter-field select[multiple] {
+  min-height: 118px;
+  padding: 8px;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  padding-top: 1.55rem;
+}
+
+.approvals-filter-panel {
+  margin-bottom: 16px;
+}
+
 .overdue td {
   color: var(--danger);
 }
